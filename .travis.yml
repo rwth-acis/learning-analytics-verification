@@ -1,0 +1,9 @@
+language: java
+jdk:
+  - openjdk8
+install:
+  - sudo apt-get install -y ant ant-optional
+sudo: false
+script: 'ant all'
+after_success:
+  - bash <(curl -s https://codecov.io/bash)
