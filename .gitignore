@@ -17,3 +17,5 @@
 /etc/startup/
 *.secret
 archiva_credentials.xml
+/bin/
+/src/test/
