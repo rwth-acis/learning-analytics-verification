@@ -68,7 +68,7 @@ public class PrivacyControlService extends RESTService {
 	
 	private ReadWriteRegistryClient registryClient;
 	private DataAccessRegistry dataAccessRegistry;
-	// private ConsentRegistry consentRegistry
+	private String dataAccessRegistryAddress;
 	
 	// private ConsentRegistry consentRegistry;
 	// private String consentRegistryAddress;
@@ -83,6 +83,7 @@ public class PrivacyControlService extends RESTService {
 			EthereumNode node = (EthereumNode) agent.getRunningAtNode();
 			registryClient = node.getRegistryClient();
 			dataAccessRegistry = deployDataAccessRegistry();
+			dataAccessRegistryAddress = dataAccessRegistry.getContractAddress();
 			
 			// TODO
 			// consentRegistry = deployConsentRegistry();
@@ -103,18 +104,14 @@ public class PrivacyControlService extends RESTService {
 	 * @param User to check consent for.
 	 * @returns boolean True/false based on user consent.
 	 */
-	// TODO: Implement logic. Currently only for testing message sending and access restriction... 
 	// TODO: Include additional parameters.
 	public boolean checkUserConsent(String email) {
 		logger.warning("Service requesting consent information for user: " + email);
-		boolean consentGiven = true;
-		if (email.equalsIgnoreCase("alice@example.org")) {
-			logger.warning("Consent not given. Permission denied.");
-			// getUserConsent(input);
-			consentGiven = false;
+		
+		if (getUserConsent(email)) {
+			return true;
 		}
-		logger.warning("Consent given. Permission granted.");
-		return consentGiven;
+		return false;
 	}
 	
 	// Basic idea for a deployment function.
@@ -130,10 +127,16 @@ public class PrivacyControlService extends RESTService {
 //	}
 
 	
+	// TODO: Implement logic. Currently only for testing message sending and access restriction... 
 	// TODO: Check how to identify the user properly
 	// TODO: Allow more complex consent structures (JSON objects?)
-	private void getUserConsent(String userId) {
-		
+	private boolean getUserConsent(String userId) {
+		boolean consentGiven = true;
+		// TODO: Replace with call to blockchain when smart contract deployed.
+		if (userId.equalsIgnoreCase("alice@example.org")) {
+			consentGiven = false;
+		}
+		return consentGiven;
 	}
 
 	private void storeUserConsent(String userId) {
