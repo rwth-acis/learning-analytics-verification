@@ -12,19 +12,25 @@ import io.swagger.annotations.SwaggerDefinition;
 
 import org.web3j.abi.datatypes.Function;
 import org.web3j.crypto.Credentials;
+import org.web3j.protocol.Web3j;
+import org.web3j.protocol.admin.Admin;
 import org.web3j.protocol.core.Response;
 import org.web3j.protocol.core.methods.request.Transaction;
 import org.web3j.protocol.core.methods.response.EthSendTransaction;
 import org.web3j.protocol.core.methods.response.TransactionReceipt;
 import org.web3j.protocol.exceptions.TransactionException;
+import org.web3j.protocol.http.HttpService;
+import org.web3j.tx.Contract;
 import org.web3j.tx.FastRawTransactionManager;
 import org.web3j.tx.Transfer;
 import org.web3j.utils.Convert;
 import org.web3j.utils.Convert.Unit;
 
 import i5.las2peer.api.Context;
+import i5.las2peer.api.ServiceException;
 import i5.las2peer.api.security.AgentLockedException;
 import i5.las2peer.execution.ExecutionContext;
+import i5.las2peer.registry.CredentialUtils;
 import i5.las2peer.registry.ReadWriteRegistryClient;
 import i5.las2peer.registry.contracts.ServiceRegistry;
 import i5.las2peer.registry.contracts.UserRegistry;
@@ -60,6 +66,10 @@ public class PrivacyControlService extends RESTService {
 	
 	private final static L2pLogger logger = L2pLogger.getInstance(PrivacyControlService.class.getName());
 	
+	private ReadWriteRegistryClient registryClient;
+	private DataAccessRegistry dataAccessRegistry;
+	// private ConsentRegistry consentRegistry
+	
 	// private ConsentRegistry consentRegistry;
 	// private String consentRegistryAddress;
 	
@@ -68,9 +78,20 @@ public class PrivacyControlService extends RESTService {
 		// TODO: Check if there are any fields to be set?
 		// setFieldValues();
 		
-		
-		// TODO
-		// deployConsentRegistry();
+		try {
+			ServiceAgentImpl agent = (ServiceAgentImpl) this.getAgent();
+			EthereumNode node = (EthereumNode) agent.getRunningAtNode();
+			registryClient = node.getRegistryClient();
+			dataAccessRegistry = deployDataAccessRegistry();
+			
+			// TODO
+			// consentRegistry = deployConsentRegistry();
+			
+
+		} catch (ServiceException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 		
 	}
 	
@@ -96,32 +117,35 @@ public class PrivacyControlService extends RESTService {
 		return consentGiven;
 	}
 	
-	// TODO:
-	private void logDataAccessOperation(Object someInput) {
-		
+	// Basic idea for a deployment function.
+	// TODO: Test implementation in registryClient.
+	private DataAccessRegistry deployDataAccessRegistry() {
+		DataAccessRegistry contract = registryClient.deploySmartContract(DataAccessRegistry.class, DataAccessRegistry.BINARY);
+		return contract;
 	}
 	
-	// TODO: Check how to identify the user properly
-	private void getUserConsent(String userId) {
-		
-	}
+//	private ConsentRegistry deployConsentRegistry() {
+//		ConsentRegistry contract = registryClient.deploySmartContract(ConsentRegistry.class, ConsentRegistry.BINARY);
+//		return contract;
+//	}
+
 	
 	// TODO: Check how to identify the user properly
 	// TODO: Allow more complex consent structures (JSON objects?)
-	private void registerUserConsent(String userId) {
+	private void getUserConsent(String userId) {
+		
+	}
+
+	private void storeUserConsent(String userId) {
 		
 	}
 	
-	private String deployConsentRegistry() {
-		// TODO: Follow a similar approach?! Challenge: get credentials, GAS_PRICE etc.
-		// TODO: Extend las2peer api with option to deploy smart contracts and get Contract's address in return.
-		//		Example contract = Example.deploy(this.web3j,
-		//				  credentials,
-		//				  ManagedTransaction.GAS_PRICE,
-		//				  Contract.GAS_LIMIT).send();
-		String contractAddress = null;
+	// TODO:
+	private void storeDataAccessOperation(String userId, Object dataAccess) {
 		
-		return contractAddress;
 	}
-	
+
+	private void loadDataAccessOperation(String userId) {
+		
+	}
 }
