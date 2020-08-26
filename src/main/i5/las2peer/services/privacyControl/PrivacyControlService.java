@@ -10,6 +10,8 @@ import io.swagger.annotations.Contact;
 import io.swagger.annotations.Info;
 import io.swagger.annotations.SwaggerDefinition;
 
+import java.math.BigInteger;
+
 import org.web3j.abi.datatypes.Function;
 import org.web3j.crypto.Credentials;
 import org.web3j.protocol.Web3j;
@@ -32,6 +34,7 @@ import i5.las2peer.api.security.AgentLockedException;
 import i5.las2peer.execution.ExecutionContext;
 import i5.las2peer.registry.CredentialUtils;
 import i5.las2peer.registry.ReadWriteRegistryClient;
+import i5.las2peer.registry.Util;
 import i5.las2peer.registry.contracts.ServiceRegistry;
 import i5.las2peer.registry.contracts.UserRegistry;
 import i5.las2peer.registry.data.RegistryConfiguration;
@@ -73,7 +76,6 @@ public class PrivacyControlService extends RESTService {
 	// private ConsentRegistry consentRegistry;
 	// private String consentRegistryAddress;
 	
-	// TODO: Init function or constructor?
 	public void init() {
 		// TODO: Check if there are any fields to be set?
 		// setFieldValues();
@@ -90,7 +92,7 @@ public class PrivacyControlService extends RESTService {
 			
 
 		} catch (ServiceException e) {
-			// TODO Auto-generated catch block
+			// TODO Implement some sort of fallback or re-init
 			e.printStackTrace();
 		}
 		
@@ -114,11 +116,35 @@ public class PrivacyControlService extends RESTService {
 		return false;
 	}
 	
-	// Basic idea for a deployment function.
-	// TODO: Test implementation in registryClient.
 	private DataAccessRegistry deployDataAccessRegistry() {
 		DataAccessRegistry contract = registryClient.deploySmartContract(DataAccessRegistry.class, DataAccessRegistry.BINARY);
 		return contract;
+	}
+	
+	public String getDataAccessRegistryAdress() {
+		return dataAccessRegistryAddress;
+	}
+	
+	
+	public void storeDataAccess(String message) throws EthereumException {
+		BigInteger bigInt = new BigInteger(message);
+		try {
+			dataAccessRegistry.store(bigInt).sendAsync().get();
+		} catch (IllegalArgumentException e) {
+			throw new IllegalArgumentException("Not a number?!", e);
+		} catch (Exception e) {
+			throw new EthereumException(e);
+		}
+	}
+	
+	public String fetchDataAccess() throws EthereumException {
+		BigInteger result = BigInteger.ZERO;
+		try {
+			result = dataAccessRegistry.retrieve().send();
+		} catch (Exception e) {
+			throw new EthereumException(e);
+		}
+		return result.toString();
 	}
 	
 //	private ConsentRegistry deployConsentRegistry() {
