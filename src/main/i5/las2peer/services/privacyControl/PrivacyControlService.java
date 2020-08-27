@@ -22,11 +22,14 @@ import org.web3j.protocol.core.methods.response.EthSendTransaction;
 import org.web3j.protocol.core.methods.response.TransactionReceipt;
 import org.web3j.protocol.exceptions.TransactionException;
 import org.web3j.protocol.http.HttpService;
+import org.web3j.tuples.generated.Tuple3;
 import org.web3j.tx.Contract;
 import org.web3j.tx.FastRawTransactionManager;
 import org.web3j.tx.Transfer;
 import org.web3j.utils.Convert;
 import org.web3j.utils.Convert.Unit;
+
+import com.sun.media.jfxmedia.logging.Logger;
 
 import i5.las2peer.api.Context;
 import i5.las2peer.api.ServiceException;
@@ -73,8 +76,8 @@ public class PrivacyControlService extends RESTService {
 	private DataAccessRegistry dataAccessRegistry;
 	private String dataAccessRegistryAddress;
 	
-	// private ConsentRegistry consentRegistry;
-	// private String consentRegistryAddress;
+	private ConsentRegistry consentRegistry;
+	private String consentRegistryAddress;
 	
 	public void init() {
 		// TODO: Check if there are any fields to be set?
@@ -87,8 +90,8 @@ public class PrivacyControlService extends RESTService {
 			dataAccessRegistry = deployDataAccessRegistry();
 			dataAccessRegistryAddress = dataAccessRegistry.getContractAddress();
 			
-			// TODO
-			// consentRegistry = deployConsentRegistry();
+			consentRegistry = deployConsentRegistry();
+			consentRegistryAddress = consentRegistry.getContractAddress();
 			
 
 		} catch (ServiceException e) {
@@ -98,23 +101,77 @@ public class PrivacyControlService extends RESTService {
 		
 	}
 	
+	// ------------------------------ Consent handling -----------------------------
+	
+	private ConsentRegistry deployConsentRegistry() {
+		ConsentRegistry contract = registryClient.deploySmartContract(ConsentRegistry.class, ConsentRegistry.BINARY);
+		return contract;
+	}
+	
+	public String getConsentRegistryAddress() {
+		return consentRegistryAddress;
+	}
 	
 	/**
 	 * Function that is invoked by a LMS proxy to check for the consent of a given user.
 	 * 
 	 * 
-	 * @param User to check consent for.
+	 * @param User (represented by email) to check consent for.
+	 * @throws EthereumException 
 	 * @returns boolean True/false based on user consent.
 	 */
 	// TODO: Include additional parameters.
-	public boolean checkUserConsent(String email) {
+	// TODO: Check how to identify the calling service.
+	public boolean checkUserConsent(String email, ConsentLevelEnum consentLevel) throws EthereumException {
 		logger.warning("Service requesting consent information for user: " + email);
 		
-		if (getUserConsent(email)) {
+		if (getUserConsent(email, consentLevel)) {
 			return true;
 		}
 		return false;
 	}
+
+	/**
+	 * Function that queries the consent of a given user from the Ethereum blockchain.
+	 * 
+	 * @param User (represented by email) to check consent for.
+	 * @throws EthereumException 
+	 * @returns boolean True/false based on user consent.
+	 */
+	private boolean getUserConsent(String userEmail, ConsentLevelEnum consentLevel) throws EthereumException {
+		logger.warning("Getting consent level for user " + userEmail + " from ConsentRegistry.");
+		boolean consentGiven = true;
+		Tuple3<String, byte[], BigInteger> consentAsTuple;
+		try {
+			consentAsTuple = consentRegistry.getConsent(Util.padAndConvertString(userEmail, 32)).sendAsync().get();
+		} catch (IllegalArgumentException e) {
+			throw new IllegalArgumentException("No consent registered.", e);
+		} catch (Exception e) {
+			throw new EthereumException(e);
+		}
+		
+		if (userEmail == Util.recoverString(consentAsTuple.getValue2()) &&
+				BigInteger.valueOf(consentLevel.getLevel()).compareTo(consentAsTuple.getValue3()) <= 0) {
+				consentGiven = true;
+				logger.warning("Consent level sufficient!");
+		} else {
+			logger.warning("Consent not found or insufficient!");
+		}
+		return consentGiven;
+	}
+	
+	public void storeUserConsent(String userEmail, BigInteger consentLevel) throws EthereumException {
+		try {
+			consentRegistry.setConsent(Util.padAndConvertString(userEmail, 32), consentLevel).sendAsync().get();
+		} catch (IllegalArgumentException e) {
+			throw new IllegalArgumentException("Not a number?!", e);
+		} catch (Exception e) {
+			throw new EthereumException(e);
+		}
+	}
+	
+	
+	// ------------------------- DataAccessRegistry (Testing) ----------------------------
 	
 	private DataAccessRegistry deployDataAccessRegistry() {
 		DataAccessRegistry contract = registryClient.deploySmartContract(DataAccessRegistry.class, DataAccessRegistry.BINARY);
@@ -147,34 +204,4 @@ public class PrivacyControlService extends RESTService {
 		return result.toString();
 	}
 	
-//	private ConsentRegistry deployConsentRegistry() {
-//		ConsentRegistry contract = registryClient.deploySmartContract(ConsentRegistry.class, ConsentRegistry.BINARY);
-//		return contract;
-//	}
-
-	
-	// TODO: Implement logic. Currently only for testing message sending and access restriction... 
-	// TODO: Check how to identify the user properly
-	// TODO: Allow more complex consent structures (JSON objects?)
-	private boolean getUserConsent(String userId) {
-		boolean consentGiven = true;
-		// TODO: Replace with call to blockchain when smart contract deployed.
-		if (userId.equalsIgnoreCase("alice@example.org")) {
-			consentGiven = false;
-		}
-		return consentGiven;
-	}
-
-	private void storeUserConsent(String userId) {
-		
-	}
-	
-	// TODO:
-	private void storeDataAccessOperation(String userId, Object dataAccess) {
-		
-	}
-
-	private void loadDataAccessOperation(String userId) {
-		
-	}
 }
