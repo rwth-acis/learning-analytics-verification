@@ -95,7 +95,7 @@ public class PrivacyControlService extends RESTService {
 			
 
 		} catch (ServiceException e) {
-			// TODO Implement some sort of fallback or re-init
+			// TODO: Implement fallback or re-init if deployment fails.
 			e.printStackTrace();
 		}
 		
@@ -115,16 +115,17 @@ public class PrivacyControlService extends RESTService {
 	/**
 	 * Function that is invoked by a LMS proxy to check for the consent of a given user.
 	 * 
-	 * 
 	 * @param User (represented by email) to check consent for.
 	 * @throws EthereumException 
 	 * @returns boolean True/false based on user consent.
 	 */
 	// TODO: Include additional parameters.
 	// TODO: Check how to identify the calling service.
-	public boolean checkUserConsent(String email, ConsentLevelEnum consentLevel) throws EthereumException {
+	public boolean checkUserConsent(String email) throws EthereumException {
 		logger.warning("Service requesting consent information for user: " + email);
 		
+		// TODO: Set required consent level based on calling service
+		ConsentLevelEnum consentLevel = ConsentLevelEnum.EXTRACTION;
 		if (getUserConsent(email, consentLevel)) {
 			return true;
 		}
@@ -140,7 +141,7 @@ public class PrivacyControlService extends RESTService {
 	 */
 	private boolean getUserConsent(String userEmail, ConsentLevelEnum consentLevel) throws EthereumException {
 		logger.warning("Getting consent level for user " + userEmail + " from ConsentRegistry.");
-		boolean consentGiven = true;
+		boolean consentGiven = false;
 		Tuple3<String, byte[], BigInteger> consentAsTuple;
 		try {
 			consentAsTuple = consentRegistry.getConsent(Util.padAndConvertString(userEmail, 32)).sendAsync().get();
@@ -150,12 +151,15 @@ public class PrivacyControlService extends RESTService {
 			throw new EthereumException(e);
 		}
 		
-		if (userEmail == Util.recoverString(consentAsTuple.getValue2()) &&
-				BigInteger.valueOf(consentLevel.getLevel()).compareTo(consentAsTuple.getValue3()) <= 0) {
+		if (userEmail.equals(Util.recoverString(consentAsTuple.getValue2()))) {
+			if (BigInteger.valueOf(consentLevel.getLevel()).compareTo(consentAsTuple.getValue3()) <= 0) {
 				consentGiven = true;
 				logger.warning("Consent level sufficient!");
+			} else {
+				logger.warning("Consent level insufficient!");
+			}
 		} else {
-			logger.warning("Consent not found or insufficient!");
+			logger.warning("UserID was not matched?!");
 		}
 		return consentGiven;
 	}
@@ -170,15 +174,40 @@ public class PrivacyControlService extends RESTService {
 		}
 	}
 	
+	// ------------------------------ Consent testing -----------------------------
 	
-	// ------------------------- DataAccessRegistry (Testing) ----------------------------
+	public void storeUserConsent(String userEmail) throws EthereumException {
+		BigInteger consentLevel = new BigInteger("3");
+		try {
+			consentRegistry.setConsent(Util.padAndConvertString(userEmail, 32), consentLevel).sendAsync().get();
+		} catch (IllegalArgumentException e) {
+			throw new IllegalArgumentException("Not a number?!", e);
+		} catch (Exception e) {
+			throw new EthereumException(e);
+		}
+	}
+	
+	public BigInteger getConsentLevel(String userEmail) throws EthereumException {
+		Tuple3<String, byte[], BigInteger> consentAsTuple;
+		try {
+			consentAsTuple = consentRegistry.getConsent(Util.padAndConvertString(userEmail, 32)).sendAsync().get();
+		} catch (IllegalArgumentException e) {
+			throw new IllegalArgumentException("No consent registered.", e);
+		} catch (Exception e) {
+			throw new EthereumException(e);
+		}
+		return consentAsTuple.getValue3();
+	}
+	
+	
+	// ------------------------- DataAccessRegistry (Testing only) ----------------------------
 	
 	private DataAccessRegistry deployDataAccessRegistry() {
 		DataAccessRegistry contract = registryClient.deploySmartContract(DataAccessRegistry.class, DataAccessRegistry.BINARY);
 		return contract;
 	}
 	
-	public String getDataAccessRegistryAdress() {
+	public String getDataAccessRegistryAddress() {
 		return dataAccessRegistryAddress;
 	}
 	
