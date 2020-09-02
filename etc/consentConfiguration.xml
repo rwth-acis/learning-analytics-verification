@@ -1,0 +1,19 @@
+<las2peer:consent>
+	<consentLevel>
+		<name>No consent</name>
+		<level>0</level>
+		<functions>
+			<function></function>
+			<function></function>
+		</functions>
+	</consentLevel>
+	
+	<consentLevel>
+		<name>No consent</name>
+		<level>0</level>
+		<functions>
+			<function></function>
+			<function></function>
+		</functions>
+	</consentLevel>
+</las2peer:consent>

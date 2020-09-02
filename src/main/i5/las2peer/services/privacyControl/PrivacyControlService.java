@@ -10,8 +10,12 @@ import io.swagger.annotations.Contact;
 import io.swagger.annotations.Info;
 import io.swagger.annotations.SwaggerDefinition;
 
+import java.io.File;
 import java.math.BigInteger;
+import java.util.HashMap;
+import java.util.List;
 
+import org.w3c.dom.Element;
 import org.web3j.abi.datatypes.Function;
 import org.web3j.crypto.Credentials;
 import org.web3j.protocol.Web3j;
@@ -46,8 +50,10 @@ import i5.las2peer.security.AgentImpl;
 import i5.las2peer.security.PassphraseAgentImpl;
 import i5.las2peer.security.ServiceAgentImpl;
 import i5.las2peer.security.EthereumAgent;
+import i5.las2peer.serialization.MalformedXMLException;
 import i5.las2peer.serialization.SerializationException;
 import i5.las2peer.serialization.SerializeTools;
+import i5.las2peer.serialization.XmlTools;
 
 /**
  * TODO: Potentially rename the service!
@@ -72,35 +78,68 @@ public class PrivacyControlService extends RESTService {
 	
 	private final static L2pLogger logger = L2pLogger.getInstance(PrivacyControlService.class.getName());
 	
+	private final static String DEFAULT_CONFIG_FILE = "etc/consentConfiguration.xml";
+	
 	private ReadWriteRegistryClient registryClient;
 	private DataAccessRegistry dataAccessRegistry;
 	private String dataAccessRegistryAddress;
 	
+	private TransactionLogRegistry transactionLogRegistry;
+	private String transactionLogRegistryAddress;
+	
 	private ConsentRegistry consentRegistry;
 	private String consentRegistryAddress;
+	
+	private HashMap<Integer, ConsentLevel> consentLevels;
+	
+	
+	// ------------------------------ Initialization -----------------------------
+	
 	
 	public void init() {
 		// TODO: Check if there are any fields to be set?
 		// setFieldValues();
 		
 		try {
+			// Read in consent levels configuration file.
+			File xmlFile = new File(DEFAULT_CONFIG_FILE);
+			if (xmlFile.exists()) {
+				Element root = XmlTools.getRootElement(xmlFile, "consent");
+				List<Element> elements = XmlTools.getElementList(root, "consentLevel");
+				for (Element elem : elements) {
+					ConsentLevel cl = ConsentLevel.createFromXml(elem);
+					consentLevels.put(cl.getLevel(), cl);
+				}
+			} else {
+				// TODO Implement behavior on error
+				
+			}
+			
+			// Deploy smart contracts from wrapper classes
 			ServiceAgentImpl agent = (ServiceAgentImpl) this.getAgent();
 			EthereumNode node = (EthereumNode) agent.getRunningAtNode();
 			registryClient = node.getRegistryClient();
+			
 			dataAccessRegistry = deployDataAccessRegistry();
 			dataAccessRegistryAddress = dataAccessRegistry.getContractAddress();
 			
 			consentRegistry = deployConsentRegistry();
 			consentRegistryAddress = consentRegistry.getContractAddress();
 			
+			transactionLogRegistry = deployTransactionLogRegistry();
+			transactionLogRegistryAddress = transactionLogRegistry.getContractAddress();
+			
 
 		} catch (ServiceException e) {
 			// TODO: Implement fallback or re-init if deployment fails.
 			e.printStackTrace();
+		} catch (MalformedXMLException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
 		}
 		
 	}
-	
+
 	// ------------------------------ Consent handling -----------------------------
 	
 	private ConsentRegistry deployConsentRegistry() {
@@ -198,6 +237,40 @@ public class PrivacyControlService extends RESTService {
 		}
 		return consentAsTuple.getValue3();
 	}
+	
+	
+	
+	// ------------------------- Transaction logging (draft) ----------------------------
+	
+		private TransactionLogRegistry deployTransactionLogRegistry() {
+			TransactionLogRegistry contract = registryClient.deploySmartContract(TransactionLogRegistry.class, TransactionLogRegistry.BINARY);
+			return contract;
+		}
+		
+		public String getTransactionLogRegistryAddress() {
+			return transactionLogRegistryAddress;
+		}
+		
+		
+		public void createLogEntry(String userEmail, String service, String operation, String dataHash) throws EthereumException {
+			try {
+				transactionLogRegistry.createLogEntry(Util.padAndConvertString(userEmail, 32), Util.padAndConvertString(service, 32), Util.padAndConvertString(operation, 32), Util.padAndConvertString(dataHash, 32)).sendAsync().get();
+			} catch (IllegalArgumentException e) {
+				throw new IllegalArgumentException("An argument was not formatted correctly.", e);
+			} catch (Exception e) {
+				throw new EthereumException(e);
+			}
+		}
+		
+		public String getLogEntries(String userEmail) throws EthereumException {
+			List<BigInteger> result;
+			try {
+				result = transactionLogRegistry.getLogEntries(Util.padAndConvertString(userEmail, 32)).send();
+			} catch (Exception e) {
+				throw new EthereumException(e);
+			}
+			return result.toString();
+		}
 	
 	
 	// ------------------------- DataAccessRegistry (Testing only) ----------------------------

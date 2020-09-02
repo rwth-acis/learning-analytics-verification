@@ -1,5 +1,7 @@
 package i5.las2peer.services.privacyControl;
 
+import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.w3c.dom.Element;
@@ -19,11 +21,13 @@ public class ConsentLevel {
 	private String name;
 	private int level;
 	private List<String> functions;
+	private LocalDate timestamp;
 	
-	public ConsentLevel(String name, int level, List<String> functions) {
+	public ConsentLevel(String name, int level, List<String> functions, LocalDate timestamp) {
 		this.name = name;
 		this.level = level;
 		this.functions = functions;
+		this.timestamp = timestamp;
 	}
 
 	public String getName() {
@@ -57,7 +61,7 @@ public class ConsentLevel {
 	 * @return Returns a new ConsentLevel instance
 	 * @throws MalformedXMLException
 	 */
-	public static ConsentLevel createFromXML(Element root) throws MalformedXMLException {
+	public static ConsentLevel createFromXml(Element root) throws MalformedXMLException {
 		// read name field from XML
 		Element elName = XmlTools.getSingularElement(root, "name");
 		String name = elName.getTextContent();
@@ -67,12 +71,12 @@ public class ConsentLevel {
 		// read function fields from XML
 		Element elFunctions = XmlTools.getSingularElement(root, "functions");
 		List<Element> elements = XmlTools.getElementList(elFunctions, "function");
-		List<String> functions;
+		List<String> functions = new ArrayList<>();
 		for (Element el : elements) {
 			functions.add(el.getTextContent());
 		}
 		
-		ConsentLevel result = new ConsentLevel(name, level, functions);
+		ConsentLevel result = new ConsentLevel(name, level, functions, LocalDate.now());
 		return result;
 	}
 }
