@@ -1,59 +1,28 @@
 package i5.las2peer.services.privacyControl;
 
-import i5.las2peer.logging.L2pLogger;
-import i5.las2peer.p2p.Node;
-import i5.las2peer.p2p.EthereumNode;
-import i5.las2peer.restMapper.RESTService;
-import i5.las2peer.restMapper.annotations.ServicePath;
-import io.swagger.annotations.Api;
-import io.swagger.annotations.Contact;
-import io.swagger.annotations.Info;
-import io.swagger.annotations.SwaggerDefinition;
-
 import java.io.File;
 import java.math.BigInteger;
 import java.util.HashMap;
 import java.util.List;
 
 import org.w3c.dom.Element;
-import org.web3j.abi.datatypes.Function;
-import org.web3j.crypto.Credentials;
-import org.web3j.protocol.Web3j;
-import org.web3j.protocol.admin.Admin;
-import org.web3j.protocol.core.Response;
-import org.web3j.protocol.core.methods.request.Transaction;
-import org.web3j.protocol.core.methods.response.EthSendTransaction;
-import org.web3j.protocol.core.methods.response.TransactionReceipt;
-import org.web3j.protocol.exceptions.TransactionException;
-import org.web3j.protocol.http.HttpService;
 import org.web3j.tuples.generated.Tuple3;
-import org.web3j.tx.Contract;
-import org.web3j.tx.FastRawTransactionManager;
-import org.web3j.tx.Transfer;
-import org.web3j.utils.Convert;
-import org.web3j.utils.Convert.Unit;
 
-import com.sun.media.jfxmedia.logging.Logger;
-
-import i5.las2peer.api.Context;
 import i5.las2peer.api.ServiceException;
-import i5.las2peer.api.security.AgentLockedException;
-import i5.las2peer.execution.ExecutionContext;
-import i5.las2peer.registry.CredentialUtils;
+import i5.las2peer.logging.L2pLogger;
+import i5.las2peer.p2p.EthereumNode;
 import i5.las2peer.registry.ReadWriteRegistryClient;
 import i5.las2peer.registry.Util;
-import i5.las2peer.registry.contracts.ServiceRegistry;
-import i5.las2peer.registry.contracts.UserRegistry;
-import i5.las2peer.registry.data.RegistryConfiguration;
 import i5.las2peer.registry.exceptions.EthereumException;
-import i5.las2peer.security.AgentImpl;
-import i5.las2peer.security.PassphraseAgentImpl;
+import i5.las2peer.restMapper.RESTService;
+import i5.las2peer.restMapper.annotations.ServicePath;
 import i5.las2peer.security.ServiceAgentImpl;
-import i5.las2peer.security.EthereumAgent;
 import i5.las2peer.serialization.MalformedXMLException;
-import i5.las2peer.serialization.SerializationException;
-import i5.las2peer.serialization.SerializeTools;
 import i5.las2peer.serialization.XmlTools;
+import io.swagger.annotations.Api;
+import io.swagger.annotations.Contact;
+import io.swagger.annotations.Info;
+import io.swagger.annotations.SwaggerDefinition;
 
 /**
  * TODO: Potentially rename the service!
