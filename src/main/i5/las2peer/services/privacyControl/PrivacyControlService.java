@@ -2,8 +2,13 @@ package i5.las2peer.services.privacyControl;
 
 import java.io.File;
 import java.math.BigInteger;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.w3c.dom.Element;
 import org.web3j.tuples.generated.Tuple3;
@@ -25,7 +30,6 @@ import io.swagger.annotations.Info;
 import io.swagger.annotations.SwaggerDefinition;
 
 /**
- * TODO: Potentially rename the service!
  * Privacy Control Service
  * 
  * This is las2peer service that manages consent and personal data access restrictions,
@@ -59,21 +63,26 @@ public class PrivacyControlService extends RESTService {
 	private ConsentRegistry consentRegistry;
 	private String consentRegistryAddress;
 	
-	private HashMap<Integer, ConsentLevel> consentLevels;
+	private Map<Integer, ConsentLevel> consentLevels;
 	
 	
 	// ------------------------------ Initialization -----------------------------
 	
-	
+	/**
+	 * Initializes the privacy control service instance.
+	 * Reads information about available consent levels from XML configuration file.
+	 * Deploys necessary smart contracts.
+	 */
 	public void init() {
 		// TODO: Check if there are any fields to be set?
 		// setFieldValues();
 		
+		// Read consent levels from configuration file.
+		consentLevels = new HashMap<Integer, ConsentLevel>();
 		try {
-			// Read in consent levels configuration file.
 			File xmlFile = new File(DEFAULT_CONFIG_FILE);
 			if (xmlFile.exists()) {
-				Element root = XmlTools.getRootElement(xmlFile, "consent");
+				Element root = XmlTools.getRootElement(xmlFile, "las2peer:consent");
 				List<Element> elements = XmlTools.getElementList(root, "consentLevel");
 				for (Element elem : elements) {
 					ConsentLevel cl = ConsentLevel.createFromXml(elem);
@@ -81,10 +90,14 @@ public class PrivacyControlService extends RESTService {
 				}
 			} else {
 				// TODO Implement behavior on error
-				
 			}
-			
-			// Deploy smart contracts from wrapper classes
+		} catch (Exception e) {
+			logger.warning("Unable to read from XML. Please check for correct format.");
+			e.printStackTrace();
+		}
+		
+		// Deploy smart contracts from wrapper classes
+		try {
 			ServiceAgentImpl agent = (ServiceAgentImpl) this.getAgent();
 			EthereumNode node = (EthereumNode) agent.getRunningAtNode();
 			registryClient = node.getRegistryClient();
@@ -97,25 +110,20 @@ public class PrivacyControlService extends RESTService {
 			
 			transactionLogRegistry = deployTransactionLogRegistry();
 			transactionLogRegistryAddress = transactionLogRegistry.getContractAddress();
-			
-
 		} catch (ServiceException e) {
-			// TODO: Implement fallback or re-init if deployment fails.
-			e.printStackTrace();
-		} catch (MalformedXMLException e) {
-			// TODO Auto-generated catch block
+			logger.warning("Initilization/Deployment of smart contracts failed!");
 			e.printStackTrace();
 		}
 		
 	}
-
+	
 	// ------------------------------ Consent handling -----------------------------
 	
 	private ConsentRegistry deployConsentRegistry() {
 		ConsentRegistry contract = registryClient.deploySmartContract(ConsentRegistry.class, ConsentRegistry.BINARY);
 		return contract;
 	}
-	
+
 	public String getConsentRegistryAddress() {
 		return consentRegistryAddress;
 	}
@@ -220,6 +228,18 @@ public class PrivacyControlService extends RESTService {
 			return transactionLogRegistryAddress;
 		}
 		
+		public String testLogEntries() throws EthereumException {
+			try {
+				createLogEntry("alice@example.org", "Moodle LMS", "err_grades_diesdas", "76582352i3uh5k2j3bjk");
+				createLogEntry("alice@example.org", "Moodle LMS", "err_grades_diesjenes", "8237468276582352i3uh5k2j3bjk");
+			} catch (Exception e) {
+				logger.warning("Storage of log entry failed");
+				e.printStackTrace();
+			}
+			
+			return getLogEntries("alice@example.org");
+		}
+		
 		
 		public void createLogEntry(String userEmail, String service, String operation, String dataHash) throws EthereumException {
 			try {
@@ -231,10 +251,12 @@ public class PrivacyControlService extends RESTService {
 			}
 		}
 		
+		@SuppressWarnings("unchecked")
 		public String getLogEntries(String userEmail) throws EthereumException {
 			List<BigInteger> result;
 			try {
-				result = transactionLogRegistry.getLogEntries(Util.padAndConvertString(userEmail, 32)).send();
+				result = (List<BigInteger>) transactionLogRegistry.getLogEntries(Util.padAndConvertString(userEmail, 32)).send();
+				result.stream().forEach(s -> logger.warning("Result: " + s + " formatted: " + Instant.ofEpochMilli(s.longValue())));
 			} catch (Exception e) {
 				throw new EthereumException(e);
 			}
