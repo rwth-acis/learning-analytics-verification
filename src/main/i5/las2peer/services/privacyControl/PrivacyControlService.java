@@ -6,6 +6,7 @@ import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -14,6 +15,9 @@ import org.w3c.dom.Element;
 import org.web3j.tuples.generated.Tuple3;
 
 import i5.las2peer.api.ServiceException;
+import i5.las2peer.api.security.AgentNotFoundException;
+import i5.las2peer.api.security.AgentOperationFailedException;
+import i5.las2peer.execution.ExecutionContext;
 import i5.las2peer.logging.L2pLogger;
 import i5.las2peer.p2p.EthereumNode;
 import i5.las2peer.registry.ReadWriteRegistryClient;
@@ -28,6 +32,7 @@ import io.swagger.annotations.Api;
 import io.swagger.annotations.Contact;
 import io.swagger.annotations.Info;
 import io.swagger.annotations.SwaggerDefinition;
+import jdk.nashorn.internal.runtime.Context;
 
 /**
  * Privacy Control Service
@@ -48,35 +53,41 @@ import io.swagger.annotations.SwaggerDefinition;
 						email = "lennart.bengtson@rwth-aachen.de")))
 @ServicePath("/privacy")
 public class PrivacyControlService extends RESTService {
-	
+
 	private final static L2pLogger logger = L2pLogger.getInstance(PrivacyControlService.class.getName());
-	
+
 	private final static String DEFAULT_CONFIG_FILE = "etc/consentConfiguration.xml";
-	
+
+	private EthereumNode node;
 	private ReadWriteRegistryClient registryClient;
 	private DataAccessRegistry dataAccessRegistry;
 	private String dataAccessRegistryAddress;
-	
+
 	private TransactionLogRegistry transactionLogRegistry;
 	private String transactionLogRegistryAddress;
-	
+
 	private ConsentRegistry consentRegistry;
 	private String consentRegistryAddress;
-	
+
 	private Map<Integer, ConsentLevel> consentLevels;
-	
-	
+
+
 	// ------------------------------ Initialization -----------------------------
-	
+
+	public PrivacyControlService() {
+		init();
+	}
+
+
 	/**
 	 * Initializes the privacy control service instance.
 	 * Reads information about available consent levels from XML configuration file.
 	 * Deploys necessary smart contracts.
 	 */
-	public void init() {
+	private void init() {
 		// TODO: Check if there are any fields to be set?
 		// setFieldValues();
-		
+
 		// Read consent levels from configuration file.
 		consentLevels = new HashMap<Integer, ConsentLevel>();
 		try {
@@ -95,30 +106,31 @@ public class PrivacyControlService extends RESTService {
 			logger.warning("Unable to read from XML. Please check for correct format.");
 			e.printStackTrace();
 		}
-		
+
 		// Deploy smart contracts from wrapper classes
 		try {
 			ServiceAgentImpl agent = (ServiceAgentImpl) this.getAgent();
-			EthereumNode node = (EthereumNode) agent.getRunningAtNode();
+			node = (EthereumNode) agent.getRunningAtNode();
 			registryClient = node.getRegistryClient();
-			
+
+			// TODO: Remove
 			dataAccessRegistry = deployDataAccessRegistry();
 			dataAccessRegistryAddress = dataAccessRegistry.getContractAddress();
-			
+
 			consentRegistry = deployConsentRegistry();
 			consentRegistryAddress = consentRegistry.getContractAddress();
-			
+
 			transactionLogRegistry = deployTransactionLogRegistry();
 			transactionLogRegistryAddress = transactionLogRegistry.getContractAddress();
 		} catch (ServiceException e) {
 			logger.warning("Initilization/Deployment of smart contracts failed!");
 			e.printStackTrace();
 		}
-		
+
 	}
-	
+
 	// ------------------------------ Consent handling -----------------------------
-	
+
 	private ConsentRegistry deployConsentRegistry() {
 		ConsentRegistry contract = registryClient.deploySmartContract(ConsentRegistry.class, ConsentRegistry.BINARY);
 		return contract;
@@ -127,25 +139,46 @@ public class PrivacyControlService extends RESTService {
 	public String getConsentRegistryAddress() {
 		return consentRegistryAddress;
 	}
-	
+
 	/**
-	 * Function that is invoked by a LMS proxy to check for the consent of a given user.
+	 * Function that is invoked by a service (e.g LMS proxy) to check for the consent of a given user.
 	 * 
 	 * @param User (represented by email) to check consent for.
 	 * @throws EthereumException 
 	 * @returns boolean True/false based on user consent.
 	 */
-	// TODO: Include additional parameters.
 	// TODO: Check how to identify the calling service.
 	public boolean checkUserConsent(String email) throws EthereumException {
-		logger.warning("Service requesting consent information for user: " + email);
-		
-		// TODO: Set required consent level based on calling service
-		ConsentLevelEnum consentLevel = ConsentLevelEnum.EXTRACTION;
-		if (getUserConsent(email, consentLevel)) {
-			return true;
+		String agentId = null;
+		try {
+			agentId = node.getAgentIdForEmail(email);
+		} catch (AgentNotFoundException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (AgentOperationFailedException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
 		}
-		return false;
+		if (agentId != null) {
+			logger.warning("Service requesting consent information for user: " + agentId);
+
+			// Set source based on calling service
+			logger.warning("MainAgent: " + ExecutionContext.getCurrent().getMainAgent());
+			logger.warning("ServiceAgent: " + ExecutionContext.getCurrent().getServiceAgent());
+			logger.warning("CallerContextAgent: " + ExecutionContext.getCurrent().getCallerContext().getMainAgent());
+
+			// Set consentLevel based on given operation
+
+			// TODO: Set required consent level based on calling service
+			BigInteger consentLevel = BigInteger.ZERO;
+			if (getUserConsent(agentId, consentLevel)) {
+				return true;
+			}
+			return false;			
+		} else {
+			logger.warning("Agent with email " + email + " not found!");
+			return false;
+		}
 	}
 
 	/**
@@ -155,56 +188,56 @@ public class PrivacyControlService extends RESTService {
 	 * @throws EthereumException 
 	 * @returns boolean True/false based on user consent.
 	 */
-	private boolean getUserConsent(String userEmail, ConsentLevelEnum consentLevel) throws EthereumException {
-		logger.warning("Getting consent level for user " + userEmail + " from ConsentRegistry.");
+	@SuppressWarnings("unchecked")
+	private boolean getUserConsent(String userId, BigInteger consentLevel) throws EthereumException {
+		logger.warning("Getting consent level for user " + userId + " from ConsentRegistry.");
+
 		boolean consentGiven = false;
-		Tuple3<String, byte[], BigInteger> consentAsTuple;
+		List<BigInteger> userConsentLevels;
 		try {
-			consentAsTuple = consentRegistry.getConsent(Util.padAndConvertString(userEmail, 32)).sendAsync().get();
+			userConsentLevels = consentRegistry.checkConsent(Util.padAndConvertString(userId, 32)).sendAsync().get();
 		} catch (IllegalArgumentException e) {
 			throw new IllegalArgumentException("No consent registered.", e);
 		} catch (Exception e) {
 			throw new EthereumException(e);
 		}
-		
-		if (userEmail.equals(Util.recoverString(consentAsTuple.getValue2()))) {
-			if (BigInteger.valueOf(consentLevel.getLevel()).compareTo(consentAsTuple.getValue3()) <= 0) {
-				consentGiven = true;
-				logger.warning("Consent level sufficient!");
-			} else {
-				logger.warning("Consent level insufficient!");
-			}
+
+		if (userConsentLevels.contains(consentLevel)) {
+			consentGiven = true;
+			logger.warning("Consent level sufficient!");
 		} else {
-			logger.warning("UserID was not matched?!");
+			logger.warning("Consent level insufficient!");
 		}
 		return consentGiven;
 	}
-	
-	public void storeUserConsent(String userEmail, BigInteger consentLevel) throws EthereumException {
+
+	public void storeUserConsent(String userId, List<BigInteger> consentLevels) throws EthereumException {
 		try {
-			consentRegistry.setConsent(Util.padAndConvertString(userEmail, 32), consentLevel).sendAsync().get();
+			consentRegistry.setConsent(Util.padAndConvertString(userId, 32), consentLevels).sendAsync().get();
 		} catch (IllegalArgumentException e) {
-			throw new IllegalArgumentException("Not a number?!", e);
+			throw new IllegalArgumentException("One of the parameters used for setting the user consent is invalid.", e);
 		} catch (Exception e) {
 			throw new EthereumException(e);
 		}
 	}
-	
+
 	// ------------------------------ Consent testing -----------------------------
-	
+
 	public void storeUserConsent(String userEmail) throws EthereumException {
-		BigInteger consentLevel = new BigInteger("3");
+		List<BigInteger> consentLevels = new ArrayList<BigInteger>();
+		consentLevels.add(new BigInteger("3"));
+		consentLevels.add(new BigInteger("1"));
 		try {
-			consentRegistry.setConsent(Util.padAndConvertString(userEmail, 32), consentLevel).sendAsync().get();
+			consentRegistry.setConsent(Util.padAndConvertString(userEmail, 32), consentLevels).sendAsync().get();
 		} catch (IllegalArgumentException e) {
 			throw new IllegalArgumentException("Not a number?!", e);
 		} catch (Exception e) {
 			throw new EthereumException(e);
 		}
 	}
-	
-	public BigInteger getConsentLevel(String userEmail) throws EthereumException {
-		Tuple3<String, byte[], BigInteger> consentAsTuple;
+
+	public List<BigInteger> getConsentLevel(String userEmail) throws EthereumException {
+		Tuple3<String, byte[], List<BigInteger>> consentAsTuple;
 		try {
 			consentAsTuple = consentRegistry.getConsent(Util.padAndConvertString(userEmail, 32)).sendAsync().get();
 		} catch (IllegalArgumentException e) {
@@ -214,68 +247,68 @@ public class PrivacyControlService extends RESTService {
 		}
 		return consentAsTuple.getValue3();
 	}
-	
-	
-	
+
+
+
 	// ------------------------- Transaction logging (draft) ----------------------------
-	
-		private TransactionLogRegistry deployTransactionLogRegistry() {
-			TransactionLogRegistry contract = registryClient.deploySmartContract(TransactionLogRegistry.class, TransactionLogRegistry.BINARY);
-			return contract;
+
+	private TransactionLogRegistry deployTransactionLogRegistry() {
+		TransactionLogRegistry contract = registryClient.deploySmartContract(TransactionLogRegistry.class, TransactionLogRegistry.BINARY);
+		return contract;
+	}
+
+	public String getTransactionLogRegistryAddress() {
+		return transactionLogRegistryAddress;
+	}
+
+	public String testLogEntries() throws EthereumException {
+		try {
+			createLogEntry("alice@example.org", "Moodle LMS", "err_grades_diesdas", "76582352i3uh5k2j3bjk");
+			createLogEntry("alice@example.org", "Moodle LMS", "err_grades_diesjenes", "8237468276582352i3uh5k2j3bjk");
+		} catch (Exception e) {
+			logger.warning("Storage of log entry failed");
+			e.printStackTrace();
 		}
-		
-		public String getTransactionLogRegistryAddress() {
-			return transactionLogRegistryAddress;
+
+		return getLogEntries("alice@example.org");
+	}
+
+
+	public void createLogEntry(String userEmail, String service, String operation, String dataHash) throws EthereumException {
+		try {
+			transactionLogRegistry.createLogEntry(Util.padAndConvertString(userEmail, 32), Util.padAndConvertString(service, 32), Util.padAndConvertString(operation, 32), Util.padAndConvertString(dataHash, 32)).sendAsync().get();
+		} catch (IllegalArgumentException e) {
+			throw new IllegalArgumentException("An argument was not formatted correctly.", e);
+		} catch (Exception e) {
+			throw new EthereumException(e);
 		}
-		
-		public String testLogEntries() throws EthereumException {
-			try {
-				createLogEntry("alice@example.org", "Moodle LMS", "err_grades_diesdas", "76582352i3uh5k2j3bjk");
-				createLogEntry("alice@example.org", "Moodle LMS", "err_grades_diesjenes", "8237468276582352i3uh5k2j3bjk");
-			} catch (Exception e) {
-				logger.warning("Storage of log entry failed");
-				e.printStackTrace();
-			}
-			
-			return getLogEntries("alice@example.org");
+	}
+
+	@SuppressWarnings("unchecked")
+	public String getLogEntries(String userEmail) throws EthereumException {
+		List<BigInteger> result;
+		try {
+			result = (List<BigInteger>) transactionLogRegistry.getLogEntries(Util.padAndConvertString(userEmail, 32)).send();
+			result.stream().forEach(s -> logger.warning("Result: " + s + " formatted: " + Instant.ofEpochMilli(s.longValue())));
+		} catch (Exception e) {
+			throw new EthereumException(e);
 		}
-		
-		
-		public void createLogEntry(String userEmail, String service, String operation, String dataHash) throws EthereumException {
-			try {
-				transactionLogRegistry.createLogEntry(Util.padAndConvertString(userEmail, 32), Util.padAndConvertString(service, 32), Util.padAndConvertString(operation, 32), Util.padAndConvertString(dataHash, 32)).sendAsync().get();
-			} catch (IllegalArgumentException e) {
-				throw new IllegalArgumentException("An argument was not formatted correctly.", e);
-			} catch (Exception e) {
-				throw new EthereumException(e);
-			}
-		}
-		
-		@SuppressWarnings("unchecked")
-		public String getLogEntries(String userEmail) throws EthereumException {
-			List<BigInteger> result;
-			try {
-				result = (List<BigInteger>) transactionLogRegistry.getLogEntries(Util.padAndConvertString(userEmail, 32)).send();
-				result.stream().forEach(s -> logger.warning("Result: " + s + " formatted: " + Instant.ofEpochMilli(s.longValue())));
-			} catch (Exception e) {
-				throw new EthereumException(e);
-			}
-			return result.toString();
-		}
-	
-	
+		return result.toString();
+	}
+
+
 	// ------------------------- DataAccessRegistry (Testing only) ----------------------------
-	
+
 	private DataAccessRegistry deployDataAccessRegistry() {
 		DataAccessRegistry contract = registryClient.deploySmartContract(DataAccessRegistry.class, DataAccessRegistry.BINARY);
 		return contract;
 	}
-	
+
 	public String getDataAccessRegistryAddress() {
 		return dataAccessRegistryAddress;
 	}
-	
-	
+
+
 	public void storeDataAccess(String message) throws EthereumException {
 		BigInteger bigInt = new BigInteger(message);
 		try {
@@ -286,7 +319,7 @@ public class PrivacyControlService extends RESTService {
 			throw new EthereumException(e);
 		}
 	}
-	
+
 	public String fetchDataAccess() throws EthereumException {
 		BigInteger result = BigInteger.ZERO;
 		try {
@@ -296,5 +329,5 @@ public class PrivacyControlService extends RESTService {
 		}
 		return result.toString();
 	}
-	
+
 }
