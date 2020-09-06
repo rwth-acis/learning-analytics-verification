@@ -17,6 +17,7 @@ import org.web3j.tuples.generated.Tuple3;
 import i5.las2peer.api.ServiceException;
 import i5.las2peer.api.security.AgentNotFoundException;
 import i5.las2peer.api.security.AgentOperationFailedException;
+import i5.las2peer.api.security.UserAgent;
 import i5.las2peer.execution.ExecutionContext;
 import i5.las2peer.logging.L2pLogger;
 import i5.las2peer.p2p.EthereumNode;
@@ -26,6 +27,7 @@ import i5.las2peer.registry.exceptions.EthereumException;
 import i5.las2peer.restMapper.RESTService;
 import i5.las2peer.restMapper.annotations.ServicePath;
 import i5.las2peer.security.ServiceAgentImpl;
+import i5.las2peer.security.UserAgentImpl;
 import i5.las2peer.serialization.MalformedXMLException;
 import i5.las2peer.serialization.XmlTools;
 import io.swagger.annotations.Api;
@@ -74,17 +76,12 @@ public class PrivacyControlService extends RESTService {
 
 	// ------------------------------ Initialization -----------------------------
 
-	public PrivacyControlService() {
-		init();
-	}
-
-
 	/**
 	 * Initializes the privacy control service instance.
 	 * Reads information about available consent levels from XML configuration file.
 	 * Deploys necessary smart contracts.
 	 */
-	private void init() {
+	public void init() {
 		// TODO: Check if there are any fields to be set?
 		// setFieldValues();
 
@@ -148,35 +145,35 @@ public class PrivacyControlService extends RESTService {
 	 * @returns boolean True/false based on user consent.
 	 */
 	// TODO: Check how to identify the calling service.
-	public boolean checkUserConsent(String email) throws EthereumException {
-		String agentId = null;
+	public boolean checkUserConsent(String userEmail) throws EthereumException {
+		UserAgentImpl agent = null;
 		try {
-			agentId = node.getAgentIdForEmail(email);
-		} catch (AgentNotFoundException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} catch (AgentOperationFailedException e) {
-			// TODO Auto-generated catch block
+			String agentId = node.getAgentIdForEmail(userEmail);
+			agent = (UserAgentImpl) node.getAgent(agentId);
+		} catch (Exception e) {
+			logger.warning("Getting agent from userEmail failed.");
 			e.printStackTrace();
 		}
-		if (agentId != null) {
-			logger.warning("Service requesting consent information for user: " + agentId);
+		if (agent != null) {
+			logger.warning("Service requesting consent information for user: " + agent.getLoginName());
+			logger.warning("Service requesting consent information for ID: " + agent.getIdentifier());
 
 			// Set source based on calling service
-			logger.warning("MainAgent: " + ExecutionContext.getCurrent().getMainAgent());
-			logger.warning("ServiceAgent: " + ExecutionContext.getCurrent().getServiceAgent());
-			logger.warning("CallerContextAgent: " + ExecutionContext.getCurrent().getCallerContext().getMainAgent());
+			logger.warning("MainAgent: " + ExecutionContext.getCurrent().getMainAgent().getIdentifier());
+			logger.warning("ServiceAgent: " + ExecutionContext.getCurrent().getServiceAgent().getServiceNameVersion());
+			logger.warning("CallerContextAgent: " + ExecutionContext.getCurrent().getCallerContext().getMainAgent().getIdentifier());
+			
 
 			// Set consentLevel based on given operation
 
 			// TODO: Set required consent level based on calling service
 			BigInteger consentLevel = BigInteger.ZERO;
-			if (getUserConsent(agentId, consentLevel)) {
+			if (getUserConsent(agent.getLoginName(), consentLevel)) {
 				return true;
 			}
 			return false;			
 		} else {
-			logger.warning("Agent with email " + email + " not found!");
+			logger.warning("Agent with email " + userEmail + " not found!");
 			return false;
 		}
 	}
@@ -189,13 +186,13 @@ public class PrivacyControlService extends RESTService {
 	 * @returns boolean True/false based on user consent.
 	 */
 	@SuppressWarnings("unchecked")
-	private boolean getUserConsent(String userId, BigInteger consentLevel) throws EthereumException {
-		logger.warning("Getting consent level for user " + userId + " from ConsentRegistry.");
+	private boolean getUserConsent(String userName, BigInteger consentLevel) throws EthereumException {
+		logger.warning("Getting consent level for user " + userName + " from ConsentRegistry.");
 
 		boolean consentGiven = false;
 		List<BigInteger> userConsentLevels;
 		try {
-			userConsentLevels = consentRegistry.checkConsent(Util.padAndConvertString(userId, 32)).sendAsync().get();
+			userConsentLevels = consentRegistry.checkConsent(Util.padAndConvertString(userName, 32)).sendAsync().get();
 		} catch (IllegalArgumentException e) {
 			throw new IllegalArgumentException("No consent registered.", e);
 		} catch (Exception e) {
@@ -211,9 +208,9 @@ public class PrivacyControlService extends RESTService {
 		return consentGiven;
 	}
 
-	public void storeUserConsent(String userId, List<BigInteger> consentLevels) throws EthereumException {
+	public void storeUserConsent(String userName, List<BigInteger> consentLevels) throws EthereumException {
 		try {
-			consentRegistry.setConsent(Util.padAndConvertString(userId, 32), consentLevels).sendAsync().get();
+			consentRegistry.setConsent(Util.padAndConvertString(userName, 32), consentLevels).sendAsync().get();
 		} catch (IllegalArgumentException e) {
 			throw new IllegalArgumentException("One of the parameters used for setting the user consent is invalid.", e);
 		} catch (Exception e) {
@@ -224,11 +221,20 @@ public class PrivacyControlService extends RESTService {
 	// ------------------------------ Consent testing -----------------------------
 
 	public void storeUserConsent(String userEmail) throws EthereumException {
+		UserAgentImpl agent = null;
+		try {
+			String agentId = node.getAgentIdForEmail(userEmail);
+			agent = (UserAgentImpl) node.getAgent(agentId);
+		} catch (Exception e) {
+			logger.warning("Getting agent from userEmail failed.");
+			e.printStackTrace();
+		}
+			
 		List<BigInteger> consentLevels = new ArrayList<BigInteger>();
 		consentLevels.add(new BigInteger("3"));
 		consentLevels.add(new BigInteger("1"));
 		try {
-			consentRegistry.setConsent(Util.padAndConvertString(userEmail, 32), consentLevels).sendAsync().get();
+			consentRegistry.setConsent(Util.padAndConvertString(agent.getLoginName(), 32), consentLevels).sendAsync().get();
 		} catch (IllegalArgumentException e) {
 			throw new IllegalArgumentException("Not a number?!", e);
 		} catch (Exception e) {
@@ -237,9 +243,18 @@ public class PrivacyControlService extends RESTService {
 	}
 
 	public List<BigInteger> getConsentLevel(String userEmail) throws EthereumException {
+		UserAgentImpl agent = null;
+		try {
+			String agentId = node.getAgentIdForEmail(userEmail);
+			agent = (UserAgentImpl) node.getAgent(agentId);
+		} catch (Exception e) {
+			logger.warning("Getting agent from userEmail failed.");
+			e.printStackTrace();
+		}
+		
 		Tuple3<String, byte[], List<BigInteger>> consentAsTuple;
 		try {
-			consentAsTuple = consentRegistry.getConsent(Util.padAndConvertString(userEmail, 32)).sendAsync().get();
+			consentAsTuple = consentRegistry.getConsent(Util.padAndConvertString(agent.getLoginName(), 32)).sendAsync().get();
 		} catch (IllegalArgumentException e) {
 			throw new IllegalArgumentException("No consent registered.", e);
 		} catch (Exception e) {
@@ -263,8 +278,8 @@ public class PrivacyControlService extends RESTService {
 
 	public String testLogEntries() throws EthereumException {
 		try {
-			createLogEntry("alice@example.org", "Moodle LMS", "err_grades_diesdas", "76582352i3uh5k2j3bjk");
-			createLogEntry("alice@example.org", "Moodle LMS", "err_grades_diesjenes", "8237468276582352i3uh5k2j3bjk");
+			createLogEntry("alice@example.org", "Moodle LMS", "gradereport_user_get_grade_items", "76582352i3uh5k2j3bjk");
+			createLogEntry("alice@example.org", "Moodle LMS", "mod_forum_get_discussion_posts", "8237468276582352i3uh5k2j3bjk");
 		} catch (Exception e) {
 			logger.warning("Storage of log entry failed");
 			e.printStackTrace();
