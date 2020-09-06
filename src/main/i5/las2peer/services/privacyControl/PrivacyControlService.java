@@ -62,9 +62,7 @@ public class PrivacyControlService extends RESTService {
 
 	private EthereumNode node;
 	private ReadWriteRegistryClient registryClient;
-	private DataAccessRegistry dataAccessRegistry;
-	private String dataAccessRegistryAddress;
-
+	
 	private TransactionLogRegistry transactionLogRegistry;
 	private String transactionLogRegistryAddress;
 
@@ -82,9 +80,6 @@ public class PrivacyControlService extends RESTService {
 	 * Deploys necessary smart contracts.
 	 */
 	public void init() {
-		// TODO: Check if there are any fields to be set?
-		// setFieldValues();
-
 		// Read consent levels from configuration file.
 		consentLevels = new HashMap<Integer, ConsentLevel>();
 		try {
@@ -109,10 +104,6 @@ public class PrivacyControlService extends RESTService {
 			ServiceAgentImpl agent = (ServiceAgentImpl) this.getAgent();
 			node = (EthereumNode) agent.getRunningAtNode();
 			registryClient = node.getRegistryClient();
-
-			// TODO: Remove
-			dataAccessRegistry = deployDataAccessRegistry();
-			dataAccessRegistryAddress = dataAccessRegistry.getContractAddress();
 
 			consentRegistry = deployConsentRegistry();
 			consentRegistryAddress = consentRegistry.getContractAddress();
@@ -144,7 +135,6 @@ public class PrivacyControlService extends RESTService {
 	 * @throws EthereumException 
 	 * @returns boolean True/false based on user consent.
 	 */
-	// TODO: Check how to identify the calling service.
 	public boolean checkUserConsent(String userEmail) throws EthereumException {
 		UserAgentImpl agent = null;
 		try {
@@ -156,17 +146,14 @@ public class PrivacyControlService extends RESTService {
 		}
 		if (agent != null) {
 			logger.warning("Service requesting consent information for user: " + agent.getLoginName());
-			logger.warning("Service requesting consent information for ID: " + agent.getIdentifier());
 
-			// Set source based on calling service
-			logger.warning("MainAgent: " + ExecutionContext.getCurrent().getMainAgent().getIdentifier());
-			logger.warning("ServiceAgent: " + ExecutionContext.getCurrent().getServiceAgent().getServiceNameVersion());
-			logger.warning("CallerContextAgent: " + ExecutionContext.getCurrent().getCallerContext().getMainAgent().getIdentifier());
+			ServiceAgentImpl callingAgent = (ServiceAgentImpl) ExecutionContext.getCurrent().getCallerContext().getMainAgent();
 			
+			if (callingAgent.getIdentifier().toLowerCase().contains("moodle")) {
+				// Set consentLevel based on given operation
+				// TODO: Set required consent level based on calling service
+			}
 
-			// Set consentLevel based on given operation
-
-			// TODO: Set required consent level based on calling service
 			BigInteger consentLevel = BigInteger.ZERO;
 			if (getUserConsent(agent.getLoginName(), consentLevel)) {
 				return true;
@@ -305,40 +292,6 @@ public class PrivacyControlService extends RESTService {
 		try {
 			result = (List<BigInteger>) transactionLogRegistry.getLogEntries(Util.padAndConvertString(userEmail, 32)).send();
 			result.stream().forEach(s -> logger.warning("Result: " + s + " formatted: " + Instant.ofEpochMilli(s.longValue())));
-		} catch (Exception e) {
-			throw new EthereumException(e);
-		}
-		return result.toString();
-	}
-
-
-	// ------------------------- DataAccessRegistry (Testing only) ----------------------------
-
-	private DataAccessRegistry deployDataAccessRegistry() {
-		DataAccessRegistry contract = registryClient.deploySmartContract(DataAccessRegistry.class, DataAccessRegistry.BINARY);
-		return contract;
-	}
-
-	public String getDataAccessRegistryAddress() {
-		return dataAccessRegistryAddress;
-	}
-
-
-	public void storeDataAccess(String message) throws EthereumException {
-		BigInteger bigInt = new BigInteger(message);
-		try {
-			dataAccessRegistry.store(bigInt).sendAsync().get();
-		} catch (IllegalArgumentException e) {
-			throw new IllegalArgumentException("Not a number?!", e);
-		} catch (Exception e) {
-			throw new EthereumException(e);
-		}
-	}
-
-	public String fetchDataAccess() throws EthereumException {
-		BigInteger result = BigInteger.ZERO;
-		try {
-			result = dataAccessRegistry.retrieve().send();
 		} catch (Exception e) {
 			throw new EthereumException(e);
 		}
