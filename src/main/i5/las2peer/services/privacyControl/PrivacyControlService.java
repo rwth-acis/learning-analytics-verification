@@ -145,16 +145,19 @@ public class PrivacyControlService extends RESTService {
 			e.printStackTrace();
 		}
 		if (agent != null) {
-			logger.warning("Service requesting consent information for user: " + agent.getLoginName());
-
 			ServiceAgentImpl callingAgent = (ServiceAgentImpl) ExecutionContext.getCurrent().getCallerContext().getMainAgent();
+			String callingAgentName = callingAgent.getServiceNameVersion().getSimpleClassName().toLowerCase();
+			logger.warning("Requesting service name: " + callingAgentName);
 
 			// TODO Adjust to include verbs/functions
 			for (BigInteger level : getConsentLevelsForLoginName(agent.getLoginName())) {
 				ConsentLevel consent = consentLevelMap.get(level.intValue());
 
 				for (String service : consent.getServices()) {
-					if (callingAgent.getIdentifier().toLowerCase().contains(service.toLowerCase())) {
+					if (callingAgentName.contains(service.toLowerCase())) {
+						// TODO Include operation and data hash
+						// Create log entry for granted data access
+						createLogEntry(agent.getLoginName(), callingAgentName, "", "");
 						return true;
 					}
 				}
@@ -286,9 +289,9 @@ public class PrivacyControlService extends RESTService {
 		return transactionLogRegistryAddress;
 	}
 	
-	public void createLogEntry(String userEmail, String service, String operation, String dataHash) throws EthereumException {
+	public void createLogEntry(String userName, String service, String operation, String dataHash) throws EthereumException {
 		try {
-			transactionLogRegistry.createLogEntry(Util.padAndConvertString(userEmail, 32), Util.padAndConvertString(service, 32), Util.padAndConvertString(operation, 32), Util.padAndConvertString(dataHash, 32)).sendAsync().get();
+			transactionLogRegistry.createLogEntry(Util.padAndConvertString(userName, 32), Util.padAndConvertString(service, 32), Util.padAndConvertString(operation, 32), Util.padAndConvertString(dataHash, 32)).sendAsync().get();
 		} catch (IllegalArgumentException e) {
 			throw new IllegalArgumentException("An argument was not formatted correctly.", e);
 		} catch (Exception e) {
@@ -297,10 +300,10 @@ public class PrivacyControlService extends RESTService {
 	}
 	
 	@SuppressWarnings("unchecked")
-	public String getLogEntries(String userEmail) throws EthereumException {
+	public String getLogEntries(String userName) throws EthereumException {
 		List<BigInteger> result;
 		try {
-			result = (List<BigInteger>) transactionLogRegistry.getLogEntries(Util.padAndConvertString(userEmail, 32)).send();
+			result = (List<BigInteger>) transactionLogRegistry.getLogEntries(Util.padAndConvertString(userName, 32)).send();
 			result.stream().forEach(s -> logger.warning("Result: " + s + " formatted: " + Instant.ofEpochMilli(s.longValue())));
 		} catch (Exception e) {
 			throw new EthereumException(e);
