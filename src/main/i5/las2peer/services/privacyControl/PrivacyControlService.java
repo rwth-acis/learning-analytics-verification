@@ -62,15 +62,15 @@ public class PrivacyControlService extends RESTService {
 
 	private EthereumNode node;
 	private ReadWriteRegistryClient registryClient;
-	
+
 	private TransactionLogRegistry transactionLogRegistry;
 	private String transactionLogRegistryAddress;
 
 	private ConsentRegistry consentRegistry;
 	private String consentRegistryAddress;
 
-	private Map<Integer, ConsentLevel> consentLevels;
-
+	// TODO Create lookup structure for consent levels and operations/functions/services
+	private Map<Integer, ConsentLevel> consentLevelMap;
 
 	// ------------------------------ Initialization -----------------------------
 
@@ -81,7 +81,7 @@ public class PrivacyControlService extends RESTService {
 	 */
 	public void init() {
 		// Read consent levels from configuration file.
-		consentLevels = new HashMap<Integer, ConsentLevel>();
+		consentLevelMap = new HashMap<Integer, ConsentLevel>();
 		try {
 			File xmlFile = new File(DEFAULT_CONFIG_FILE);
 			if (xmlFile.exists()) {
@@ -89,7 +89,7 @@ public class PrivacyControlService extends RESTService {
 				List<Element> elements = XmlTools.getElementList(root, "consentLevel");
 				for (Element elem : elements) {
 					ConsentLevel cl = ConsentLevel.createFromXml(elem);
-					consentLevels.put(cl.getLevel(), cl);
+					consentLevelMap.put(cl.getLevel(), cl);
 				}
 			} else {
 				// TODO Implement behavior on error
@@ -131,7 +131,7 @@ public class PrivacyControlService extends RESTService {
 	/**
 	 * Function that is invoked by a service (e.g LMS proxy) to check for the consent of a given user.
 	 * 
-	 * @param User (represented by email) to check consent for.
+	 * @param User (represented by login name) to check consent for.
 	 * @throws EthereumException 
 	 * @returns boolean True/false based on user consent.
 	 */
@@ -148,27 +148,26 @@ public class PrivacyControlService extends RESTService {
 			logger.warning("Service requesting consent information for user: " + agent.getLoginName());
 
 			ServiceAgentImpl callingAgent = (ServiceAgentImpl) ExecutionContext.getCurrent().getCallerContext().getMainAgent();
-			
-			if (callingAgent.getIdentifier().toLowerCase().contains("moodle")) {
-				// Set consentLevel based on given operation
-				// TODO: Set required consent level based on calling service
-			}
 
-			BigInteger consentLevel = BigInteger.ZERO;
-			if (getUserConsent(agent.getLoginName(), consentLevel)) {
-				return true;
-			}
-			return false;			
-		} else {
-			logger.warning("Agent with email " + userEmail + " not found!");
-			return false;
+			// TODO Adjust to include verbs/functions
+			for (BigInteger level : getConsentLevelsForLoginName(agent.getLoginName())) {
+				ConsentLevel consent = consentLevelMap.get(level.intValue());
+
+				for (String service : consent.getServices()) {
+					if (callingAgent.getIdentifier().toLowerCase().contains(service.toLowerCase())) {
+						return true;
+					}
+				}
+			}			
 		}
+		return false;
 	}
 
 	/**
 	 * Function that queries the consent of a given user from the Ethereum blockchain.
 	 * 
-	 * @param User (represented by email) to check consent for.
+	 * @param User (represented by login name) to check consent for.
+	 * @param BigInteger necessary level of consent (as defined in config file)
 	 * @throws EthereumException 
 	 * @returns boolean True/false based on user consent.
 	 */
@@ -195,7 +194,14 @@ public class PrivacyControlService extends RESTService {
 		return consentGiven;
 	}
 
-	public void storeUserConsent(String userName, List<BigInteger> consentLevels) throws EthereumException {
+	/**
+	 * Stores the consent level(s) for a user.
+	 * 
+	 * @param User (represented by login name) to check consent for.
+	 * @param BigInteger necessary level of consent (as defined in config file)
+	 * @throws EthereumException
+	 */
+	public void storeUserConsentLevels(String userName, List<BigInteger> consentLevels) throws EthereumException {
 		try {
 			consentRegistry.setConsent(Util.padAndConvertString(userName, 32), consentLevels).sendAsync().get();
 		} catch (IllegalArgumentException e) {
@@ -204,8 +210,27 @@ public class PrivacyControlService extends RESTService {
 			throw new EthereumException(e);
 		}
 	}
+	
+	/**
+	 * 
+	 * @param userName
+	 * @return List of all consent levels stored for the given user
+	 * @throws EthereumException
+	 */
+	public List<BigInteger> getConsentLevelsForLoginName(String userName) throws EthereumException {
+		Tuple3<String, byte[], List<BigInteger>> consentAsTuple;
+		try {
+			consentAsTuple = consentRegistry.getConsent(Util.padAndConvertString(userName, 32)).sendAsync().get();
+		} catch (IllegalArgumentException e) {
+			throw new IllegalArgumentException("No consent registered.", e);
+		} catch (Exception e) {
+			throw new EthereumException(e);
+		}
+		return consentAsTuple.getValue3();
+	}
 
-	// ------------------------------ Consent testing -----------------------------
+
+	// ------------------------------ Consent testing (to be (re)moved) -----------------------------
 
 	public void storeUserConsent(String userEmail) throws EthereumException {
 		UserAgentImpl agent = null;
@@ -216,9 +241,9 @@ public class PrivacyControlService extends RESTService {
 			logger.warning("Getting agent from userEmail failed.");
 			e.printStackTrace();
 		}
-			
+
 		List<BigInteger> consentLevels = new ArrayList<BigInteger>();
-		consentLevels.add(new BigInteger("3"));
+		consentLevels.add(new BigInteger("0"));
 		consentLevels.add(new BigInteger("1"));
 		try {
 			consentRegistry.setConsent(Util.padAndConvertString(agent.getLoginName(), 32), consentLevels).sendAsync().get();
@@ -228,8 +253,8 @@ public class PrivacyControlService extends RESTService {
 			throw new EthereumException(e);
 		}
 	}
-
-	public List<BigInteger> getConsentLevel(String userEmail) throws EthereumException {
+	
+	public List<BigInteger> getConsentLevelsForEmail(String userEmail) throws EthereumException {
 		UserAgentImpl agent = null;
 		try {
 			String agentId = node.getAgentIdForEmail(userEmail);
@@ -238,7 +263,7 @@ public class PrivacyControlService extends RESTService {
 			logger.warning("Getting agent from userEmail failed.");
 			e.printStackTrace();
 		}
-		
+
 		Tuple3<String, byte[], List<BigInteger>> consentAsTuple;
 		try {
 			consentAsTuple = consentRegistry.getConsent(Util.padAndConvertString(agent.getLoginName(), 32)).sendAsync().get();
@@ -250,9 +275,7 @@ public class PrivacyControlService extends RESTService {
 		return consentAsTuple.getValue3();
 	}
 
-
-
-	// ------------------------- Transaction logging (draft) ----------------------------
+	// ------------------------- Transaction logging ----------------------------
 
 	private TransactionLogRegistry deployTransactionLogRegistry() {
 		TransactionLogRegistry contract = registryClient.deploySmartContract(TransactionLogRegistry.class, TransactionLogRegistry.BINARY);
@@ -262,20 +285,7 @@ public class PrivacyControlService extends RESTService {
 	public String getTransactionLogRegistryAddress() {
 		return transactionLogRegistryAddress;
 	}
-
-	public String testLogEntries() throws EthereumException {
-		try {
-			createLogEntry("alice@example.org", "Moodle LMS", "gradereport_user_get_grade_items", "76582352i3uh5k2j3bjk");
-			createLogEntry("alice@example.org", "Moodle LMS", "mod_forum_get_discussion_posts", "8237468276582352i3uh5k2j3bjk");
-		} catch (Exception e) {
-			logger.warning("Storage of log entry failed");
-			e.printStackTrace();
-		}
-
-		return getLogEntries("alice@example.org");
-	}
-
-
+	
 	public void createLogEntry(String userEmail, String service, String operation, String dataHash) throws EthereumException {
 		try {
 			transactionLogRegistry.createLogEntry(Util.padAndConvertString(userEmail, 32), Util.padAndConvertString(service, 32), Util.padAndConvertString(operation, 32), Util.padAndConvertString(dataHash, 32)).sendAsync().get();
@@ -285,7 +295,7 @@ public class PrivacyControlService extends RESTService {
 			throw new EthereumException(e);
 		}
 	}
-
+	
 	@SuppressWarnings("unchecked")
 	public String getLogEntries(String userEmail) throws EthereumException {
 		List<BigInteger> result;
@@ -297,5 +307,16 @@ public class PrivacyControlService extends RESTService {
 		}
 		return result.toString();
 	}
+	
+	public String testLogEntries() throws EthereumException {
+		try {
+			createLogEntry("alice@example.org", "Moodle LMS", "gradereport_user_get_grade_items", "76582352i3uh5k2j3bjk");
+			createLogEntry("alice@example.org", "Moodle LMS", "mod_forum_get_discussion_posts", "8237468276582352i3uh5k2j3bjk");
+		} catch (Exception e) {
+			logger.warning("Storage of log entry failed");
+			e.printStackTrace();
+		}
 
+		return getLogEntries("alice@example.org");
+	}
 }
