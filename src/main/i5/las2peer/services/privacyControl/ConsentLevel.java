@@ -21,39 +21,49 @@ public class ConsentLevel {
 	private String name;
 	private int level;
 	private List<String> functions;
+	private List<String> services;
 	private LocalDate timestamp;
-	
-	public ConsentLevel(String name, int level, List<String> functions, LocalDate timestamp) {
+
+	public ConsentLevel(String name, int level, List<String> functions, List<String> services, LocalDate timestamp) {
 		this.name = name;
 		this.level = level;
 		this.functions = functions;
+		this.services = services;
 		this.timestamp = timestamp;
 	}
 
 	public String getName() {
 		return name;
 	}
-	
+
 	public void setName(String name) {
 		this.name = name;
 	}
-	
+
 	public int getLevel() {
 		return level;
 	}
-	
+
 	public void setLevel(int level) {
 		this.level = level;
 	}
-	
+
 	public List<String> getFunctions() {
 		return functions;
 	}
-	
+
 	public void setFunctions(List<String> functions) {
 		this.functions = functions;
 	}
-	
+
+	public List<String> getServices() {
+		return services;
+	}
+
+	public void setServices(List<String> services) {
+		this.services = services;
+	}
+
 	/**
 	 * Sets the state of the object based on a read xml representation.
 	 *
@@ -65,18 +75,28 @@ public class ConsentLevel {
 		// read name field from XML
 		Element elName = XmlTools.getSingularElement(root, "name");
 		String name = elName.getTextContent();
+
 		// read level field from XML
 		Element elLevel = XmlTools.getSingularElement(root, "level");
 		int level = Integer.valueOf(elLevel.getTextContent());
+
 		// read function fields from XML
-		Element elFunctions = XmlTools.getSingularElement(root, "functions");
-		List<Element> elements = XmlTools.getElementList(elFunctions, "function");
+		Element rootElem = XmlTools.getSingularElement(root, "functions");
+		List<Element> elements = XmlTools.getElementList(rootElem, "function");
 		List<String> functions = new ArrayList<>();
 		for (Element el : elements) {
 			functions.add(el.getTextContent());
 		}
-		
-		ConsentLevel result = new ConsentLevel(name, level, functions, LocalDate.now());
+
+		// read service fields from XML
+		rootElem = XmlTools.getSingularElement(root, "services");
+		elements = XmlTools.getElementList(rootElem, "service");
+		List<String> services = new ArrayList<>();
+		for (Element el : elements) {
+			services.add(el.getTextContent());
+		}
+
+		ConsentLevel result = new ConsentLevel(name, level, functions, services, LocalDate.now());
 		return result;
 	}
 }

@@ -4,16 +4,22 @@
 		<level>0</level>
 		<functions>
 			<function></function>
-			<function></function>
 		</functions>
+		<services>
+			<service></service>
+		</services>
 	</consentLevel>
 	
 	<consentLevel>
-		<name>No consent</name>
-		<level>0</level>
+		<name>LMS Extraction</name>
+		<level>1</level>
 		<functions>
-			<function></function>
-			<function></function>
+			<function>gradereport_user_get_grade_items</function>
+			<function>local_t4c_get_recent_course_activities</function>
 		</functions>
+		<services>
+			<service>Moodle</service>
+			<service>Onyx</service>
+		</services>
 	</consentLevel>
 </las2peer:consent>
