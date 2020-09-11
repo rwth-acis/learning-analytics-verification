@@ -81,6 +81,7 @@ public class PrivacyControlService extends RESTService {
 	 */
 	public void init() {
 		// Read consent levels from configuration file.
+		// TODO allow to change the configuration at a later stage? 
 		consentLevelMap = new HashMap<Integer, ConsentLevel>();
 		try {
 			File xmlFile = new File(DEFAULT_CONFIG_FILE);
@@ -128,14 +129,19 @@ public class PrivacyControlService extends RESTService {
 		return consentRegistryAddress;
 	}
 
+	public boolean checkUserConsent(String userEmail) throws EthereumException {
+		return checkUserConsent(userEmail, "");
+	}
+
 	/**
 	 * Function that is invoked by a service (e.g LMS proxy) to check for the consent of a given user.
 	 * 
 	 * @param User (represented by login name) to check consent for.
+	 * @param Action that the consent is requested for
 	 * @throws EthereumException 
 	 * @returns boolean True/false based on user consent.
 	 */
-	public boolean checkUserConsent(String userEmail) throws EthereumException {
+	public boolean checkUserConsent(String userEmail, String action) throws EthereumException {
 		UserAgentImpl agent = null;
 		try {
 			String agentId = node.getAgentIdForEmail(userEmail);
@@ -145,20 +151,27 @@ public class PrivacyControlService extends RESTService {
 			e.printStackTrace();
 		}
 		if (agent != null) {
+			// Get calling service from execution context
 			ServiceAgentImpl callingAgent = (ServiceAgentImpl) ExecutionContext.getCurrent().getCallerContext().getMainAgent();
 			String callingAgentName = callingAgent.getServiceNameVersion().getSimpleClassName().toLowerCase();
 			logger.warning("Requesting service name: " + callingAgentName);
 
-			// TODO Adjust to include verbs/functions
 			for (BigInteger level : getConsentLevelsForLoginName(agent.getLoginName())) {
 				ConsentLevel consent = consentLevelMap.get(level.intValue());
 
 				for (String service : consent.getServices()) {
 					if (callingAgentName.contains(service.toLowerCase())) {
-						// TODO Include operation and data hash
-						// Create log entry for granted data access
-						createLogEntry(agent.getLoginName(), callingAgentName, "", "");
-						return true;
+						
+						// Check in functions if an action is transmitted.
+						if (!action.isEmpty()) {
+							for (String function : consent.getFunctions()) {
+								if (function.toLowerCase().contains(action.toLowerCase())) {
+									// Create log entry for granted data access
+									createLogEntry(agent.getLoginName(), callingAgentName, action, "");
+									return true;
+								}
+							}
+						}
 					}
 				}
 			}			
@@ -213,7 +226,7 @@ public class PrivacyControlService extends RESTService {
 			throw new EthereumException(e);
 		}
 	}
-	
+
 	/**
 	 * 
 	 * @param userName
@@ -256,7 +269,7 @@ public class PrivacyControlService extends RESTService {
 			throw new EthereumException(e);
 		}
 	}
-	
+
 	public List<BigInteger> getConsentLevelsForEmail(String userEmail) throws EthereumException {
 		UserAgentImpl agent = null;
 		try {
@@ -288,7 +301,7 @@ public class PrivacyControlService extends RESTService {
 	public String getTransactionLogRegistryAddress() {
 		return transactionLogRegistryAddress;
 	}
-	
+
 	public void createLogEntry(String userName, String service, String operation, String dataHash) throws EthereumException {
 		try {
 			transactionLogRegistry.createLogEntry(Util.padAndConvertString(userName, 32), Util.padAndConvertString(service, 32), Util.padAndConvertString(operation, 32), Util.padAndConvertString(dataHash, 32)).sendAsync().get();
@@ -298,7 +311,7 @@ public class PrivacyControlService extends RESTService {
 			throw new EthereumException(e);
 		}
 	}
-	
+
 	@SuppressWarnings("unchecked")
 	public String getLogEntries(String userName) throws EthereumException {
 		List<BigInteger> result;
@@ -310,7 +323,7 @@ public class PrivacyControlService extends RESTService {
 		}
 		return result.toString();
 	}
-	
+
 	public String testLogEntries() throws EthereumException {
 		try {
 			createLogEntry("alice@example.org", "Moodle LMS", "gradereport_user_get_grade_items", "76582352i3uh5k2j3bjk");

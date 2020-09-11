@@ -14,8 +14,8 @@
 		<name>LMS Extraction</name>
 		<level>1</level>
 		<functions>
-			<function>gradereport_user_get_grade_items</function>
-			<function>local_t4c_get_recent_course_activities</function>
+			<function>viewed</function>
+			<function>received</function>
 		</functions>
 		<services>
 			<service>Moodle</service>
