@@ -2,6 +2,7 @@ package i5.las2peer.services.privacyControl;
 
 import java.io.File;
 import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.time.Instant;
@@ -30,6 +31,8 @@ import i5.las2peer.security.ServiceAgentImpl;
 import i5.las2peer.security.UserAgentImpl;
 import i5.las2peer.serialization.MalformedXMLException;
 import i5.las2peer.serialization.XmlTools;
+import i5.las2peer.tools.CryptoException;
+import i5.las2peer.tools.CryptoTools;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.Contact;
 import io.swagger.annotations.Info;
@@ -166,8 +169,6 @@ public class PrivacyControlService extends RESTService {
 						if (!action.isEmpty()) {
 							for (String function : consent.getFunctions()) {
 								if (function.toLowerCase().contains(action.toLowerCase())) {
-									// Create log entry for granted data access
-									createLogEntry(agent.getLoginName(), callingAgentName, action, "");
 									return true;
 								}
 							}
@@ -237,10 +238,8 @@ public class PrivacyControlService extends RESTService {
 		Tuple3<String, byte[], List<BigInteger>> consentAsTuple;
 		try {
 			consentAsTuple = consentRegistry.getConsent(Util.padAndConvertString(userName, 32)).sendAsync().get();
-		} catch (IllegalArgumentException e) {
-			throw new IllegalArgumentException("No consent registered.", e);
 		} catch (Exception e) {
-			throw new EthereumException(e);
+			throw new EthereumException("No consent registered.", e);
 		}
 		return consentAsTuple.getValue3();
 	}
@@ -263,10 +262,8 @@ public class PrivacyControlService extends RESTService {
 		consentLevels.add(new BigInteger("1"));
 		try {
 			consentRegistry.setConsent(Util.padAndConvertString(agent.getLoginName(), 32), consentLevels).sendAsync().get();
-		} catch (IllegalArgumentException e) {
-			throw new IllegalArgumentException("Not a number?!", e);
 		} catch (Exception e) {
-			throw new EthereumException(e);
+			throw new EthereumException("Consent registration failed.", e);
 		}
 	}
 
@@ -283,10 +280,8 @@ public class PrivacyControlService extends RESTService {
 		Tuple3<String, byte[], List<BigInteger>> consentAsTuple;
 		try {
 			consentAsTuple = consentRegistry.getConsent(Util.padAndConvertString(agent.getLoginName(), 32)).sendAsync().get();
-		} catch (IllegalArgumentException e) {
-			throw new IllegalArgumentException("No consent registered.", e);
 		} catch (Exception e) {
-			throw new EthereumException(e);
+			throw new EthereumException("No consent registered.", e);
 		}
 		return consentAsTuple.getValue3();
 	}
@@ -300,6 +295,30 @@ public class PrivacyControlService extends RESTService {
 
 	public String getTransactionLogRegistryAddress() {
 		return transactionLogRegistryAddress;
+	}
+	
+	public void createLogEntry(String userEmail, String action, String statement) throws CryptoException, EthereumException {
+		UserAgentImpl agent = null;
+		try {
+			String agentId = node.getAgentIdForEmail(userEmail);
+			agent = (UserAgentImpl) node.getAgent(agentId);
+		} catch (Exception e) {
+			logger.warning("Getting agent from userEmail failed.");
+			e.printStackTrace();
+		}
+		
+		ServiceAgentImpl callingAgent = (ServiceAgentImpl) ExecutionContext.getCurrent().getCallerContext().getMainAgent();
+		String callingAgentName = callingAgent.getServiceNameVersion().getSimpleClassName().toLowerCase();
+		
+		// Create hash to store on chain
+		byte[] bytes = statement.getBytes(StandardCharsets.UTF_8);
+		byte[] hash = CryptoTools.getSecureHash(bytes);
+		// TODO Store in las2peer shared storage?!
+		try {
+			transactionLogRegistry.createLogEntry(Util.padAndConvertString(agent.getLoginName(), 32), Util.padAndConvertString(callingAgentName, 32), Util.padAndConvertString(action, 32), hash).sendAsync().get();
+		} catch (Exception e) {
+			throw new EthereumException(e);
+		}
 	}
 
 	public void createLogEntry(String userName, String service, String operation, String dataHash) throws EthereumException {
