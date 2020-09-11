@@ -181,37 +181,6 @@ public class PrivacyControlService extends RESTService {
 	}
 
 	/**
-	 * Function that queries the consent of a given user from the Ethereum blockchain.
-	 * 
-	 * @param User (represented by login name) to check consent for.
-	 * @param BigInteger necessary level of consent (as defined in config file)
-	 * @throws EthereumException 
-	 * @returns boolean True/false based on user consent.
-	 */
-	@SuppressWarnings("unchecked")
-	private boolean getUserConsent(String userName, BigInteger consentLevel) throws EthereumException {
-		logger.warning("Getting consent level for user " + userName + " from ConsentRegistry.");
-
-		boolean consentGiven = false;
-		List<BigInteger> userConsentLevels;
-		try {
-			userConsentLevels = consentRegistry.checkConsent(Util.padAndConvertString(userName, 32)).sendAsync().get();
-		} catch (IllegalArgumentException e) {
-			throw new IllegalArgumentException("No consent registered.", e);
-		} catch (Exception e) {
-			throw new EthereumException(e);
-		}
-
-		if (userConsentLevels.contains(consentLevel)) {
-			consentGiven = true;
-			logger.warning("Consent level sufficient!");
-		} else {
-			logger.warning("Consent level insufficient!");
-		}
-		return consentGiven;
-	}
-
-	/**
 	 * Stores the consent level(s) for a user.
 	 * 
 	 * @param User (represented by login name) to check consent for.
@@ -220,7 +189,7 @@ public class PrivacyControlService extends RESTService {
 	 */
 	public void storeUserConsentLevels(String userName, List<BigInteger> consentLevels) throws EthereumException {
 		try {
-			consentRegistry.setConsent(Util.padAndConvertString(userName, 32), consentLevels).sendAsync().get();
+			consentRegistry.storeConsent(Util.padAndConvertString(userName, 32), consentLevels).sendAsync().get();
 		} catch (IllegalArgumentException e) {
 			throw new IllegalArgumentException("One of the parameters used for setting the user consent is invalid.", e);
 		} catch (Exception e) {
@@ -234,14 +203,15 @@ public class PrivacyControlService extends RESTService {
 	 * @return List of all consent levels stored for the given user
 	 * @throws EthereumException
 	 */
+	@SuppressWarnings("unchecked")
 	public List<BigInteger> getConsentLevelsForLoginName(String userName) throws EthereumException {
-		Tuple3<String, byte[], List<BigInteger>> consentAsTuple;
+		List<BigInteger> consentLevels;
 		try {
-			consentAsTuple = consentRegistry.getConsent(Util.padAndConvertString(userName, 32)).sendAsync().get();
+			consentLevels = consentRegistry.getUserConsentLevels(Util.padAndConvertString(userName, 32)).sendAsync().get();
 		} catch (Exception e) {
 			throw new EthereumException("No consent registered.", e);
 		}
-		return consentAsTuple.getValue3();
+		return consentLevels;
 	}
 
 
@@ -261,12 +231,13 @@ public class PrivacyControlService extends RESTService {
 		consentLevels.add(new BigInteger("0"));
 		consentLevels.add(new BigInteger("1"));
 		try {
-			consentRegistry.setConsent(Util.padAndConvertString(agent.getLoginName(), 32), consentLevels).sendAsync().get();
+			consentRegistry.storeConsent(Util.padAndConvertString(agent.getLoginName(), 32), consentLevels).sendAsync().get();
 		} catch (Exception e) {
 			throw new EthereumException("Consent registration failed.", e);
 		}
 	}
 
+	@SuppressWarnings("unchecked")
 	public List<BigInteger> getConsentLevelsForEmail(String userEmail) throws EthereumException {
 		UserAgentImpl agent = null;
 		try {
@@ -277,13 +248,13 @@ public class PrivacyControlService extends RESTService {
 			e.printStackTrace();
 		}
 
-		Tuple3<String, byte[], List<BigInteger>> consentAsTuple;
+		List<BigInteger> consentLevels;
 		try {
-			consentAsTuple = consentRegistry.getConsent(Util.padAndConvertString(agent.getLoginName(), 32)).sendAsync().get();
+			consentLevels = consentRegistry.getUserConsentLevels(Util.padAndConvertString(agent.getLoginName(), 32)).sendAsync().get();
 		} catch (Exception e) {
 			throw new EthereumException("No consent registered.", e);
 		}
-		return consentAsTuple.getValue3();
+		return consentLevels;
 	}
 
 	// ------------------------- Transaction logging ----------------------------
