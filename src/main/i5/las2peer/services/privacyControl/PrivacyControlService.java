@@ -282,8 +282,8 @@ public class PrivacyControlService extends RESTService {
 		String callingAgentName = callingAgent.getServiceNameVersion().getSimpleClassName().toLowerCase();
 		
 		// Create hash to store on chain
-		byte[] bytes = statement.getBytes(StandardCharsets.UTF_8);
-		byte[] hash = CryptoTools.getSecureHash(bytes);
+		byte[] hash = Util.soliditySha3(statement);
+		
 		// TODO Store in las2peer shared storage?!
 		try {
 			transactionLogRegistry.createLogEntry(Util.padAndConvertString(agent.getLoginName(), 32), Util.padAndConvertString(callingAgentName, 32), Util.padAndConvertString(action, 32), hash).sendAsync().get();
@@ -309,6 +309,20 @@ public class PrivacyControlService extends RESTService {
 			result = (List<BigInteger>) transactionLogRegistry.getLogEntries(Util.padAndConvertString(userName, 32)).send();
 			result.stream().forEach(s -> logger.warning("Result: " + s + " formatted: " + Instant.ofEpochMilli(s.longValue())));
 		} catch (Exception e) {
+			e.printStackTrace();
+			throw new EthereumException(e);
+		}
+		return result.toString();
+	}
+	
+	@SuppressWarnings("unchecked")
+	public String getDataHashes(String userName) throws EthereumException {
+		List<byte[]> result;
+		try {
+			result = (List<byte[]>) transactionLogRegistry.getDataHashesForUser(Util.padAndConvertString(userName, 32)).send();
+			result.stream().forEach(s -> logger.warning("Hash: " + s.toString()));
+		} catch (Exception e) {
+			e.printStackTrace();
 			throw new EthereumException(e);
 		}
 		return result.toString();
