@@ -2,6 +2,7 @@ package i5.las2peer.services.privacyControl;
 
 import java.io.File;
 import java.math.BigInteger;
+import java.net.HttpURLConnection;
 import java.nio.charset.StandardCharsets;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
@@ -11,6 +12,15 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+
+import javax.ws.rs.Consumes;
+import javax.ws.rs.GET;
+import javax.ws.rs.POST;
+import javax.ws.rs.Path;
+import javax.ws.rs.Produces;
+import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
 
 import org.w3c.dom.Element;
 import org.web3j.tuples.generated.Tuple3;
@@ -34,10 +44,15 @@ import i5.las2peer.serialization.XmlTools;
 import i5.las2peer.tools.CryptoException;
 import i5.las2peer.tools.CryptoTools;
 import io.swagger.annotations.Api;
+import io.swagger.annotations.ApiOperation;
+import io.swagger.annotations.ApiResponse;
+import io.swagger.annotations.ApiResponses;
 import io.swagger.annotations.Contact;
 import io.swagger.annotations.Info;
 import io.swagger.annotations.SwaggerDefinition;
 import jdk.nashorn.internal.runtime.Context;
+import net.minidev.json.JSONObject;
+import net.minidev.json.parser.ParseException;
 
 /**
  * Privacy Control Service
@@ -119,6 +134,43 @@ public class PrivacyControlService extends RESTService {
 			e.printStackTrace();
 		}
 
+	}
+	
+	// ------------------------------ Bot communication ----------------------------
+	
+	@GET
+	@Path("/consentLevels")
+	@Produces(MediaType.APPLICATION_JSON)
+	@ApiOperation(
+			value = "REPLACE THIS WITH AN APPROPRIATE FUNCTION NAME",
+			notes = "REPLACE THIS WITH YOUR NOTES TO THE FUNCTION")
+	@ApiResponses(
+			value = { @ApiResponse(
+					code = HttpURLConnection.HTTP_OK,
+					message = "REPLACE THIS WITH YOUR OK MESSAGE") })
+	public Response getConsentLevels() throws ParseException {
+		logger.warning("Consent levels requested.");
+		String consentLevelString = "";
+		Set<Integer> consentLevels = consentLevelMap.keySet();
+		
+		for (Integer i : consentLevels) {
+			ConsentLevel cl = consentLevelMap.get(i);
+			consentLevelString += ("Level " + cl.getLevel() + ":\n");
+			consentLevelString += "Authorisierte Services: ";
+			for (String service : cl.getServices()) {
+				consentLevelString += (service + ", ");
+			}
+			consentLevelString += "\n";
+			consentLevelString += "Authorisierte Zugriffsoperationen: ";
+			for (String func : cl.getFunctions()) {
+				consentLevelString += (func + ", ");
+			}
+			consentLevelString += "\n\n";
+		}
+		
+		JSONObject responseBody = new JSONObject();
+		responseBody.put("text", consentLevelString);
+		return Response.ok().entity(responseBody).build();
 	}
 
 	// ------------------------------ Consent handling -----------------------------
