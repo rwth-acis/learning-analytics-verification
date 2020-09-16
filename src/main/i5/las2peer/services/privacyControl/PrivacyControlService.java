@@ -9,6 +9,7 @@ import java.text.SimpleDateFormat;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -24,6 +25,8 @@ import javax.ws.rs.core.Response;
 
 import org.w3c.dom.Element;
 import org.web3j.tuples.generated.Tuple3;
+
+import com.sun.xml.internal.ws.policy.privateutil.PolicyUtils.Collections;
 
 import i5.las2peer.api.ServiceException;
 import i5.las2peer.api.security.AgentNotFoundException;
@@ -51,7 +54,9 @@ import io.swagger.annotations.Contact;
 import io.swagger.annotations.Info;
 import io.swagger.annotations.SwaggerDefinition;
 import jdk.nashorn.internal.runtime.Context;
+import net.minidev.json.JSONArray;
 import net.minidev.json.JSONObject;
+import net.minidev.json.parser.JSONParser;
 import net.minidev.json.parser.ParseException;
 
 /**
@@ -71,7 +76,7 @@ import net.minidev.json.parser.ParseException;
 						name = "Lennart Bengtson",
 						url = "rwth-aachen.de",
 						email = "lennart.bengtson@rwth-aachen.de")))
-@ServicePath("/privacy")
+@ServicePath("/Privacy")
 public class PrivacyControlService extends RESTService {
 
 	private final static L2pLogger logger = L2pLogger.getInstance(PrivacyControlService.class.getName());
@@ -119,6 +124,7 @@ public class PrivacyControlService extends RESTService {
 		}
 
 		// Deploy smart contracts from wrapper classes
+		// TODO Check how this works with re-deployment. Might have to change towards a config file to store contract addresses.
 		try {
 			ServiceAgentImpl agent = (ServiceAgentImpl) this.getAgent();
 			node = (EthereumNode) agent.getRunningAtNode();
@@ -141,13 +147,10 @@ public class PrivacyControlService extends RESTService {
 	@GET
 	@Path("/consentLevels")
 	@Produces(MediaType.APPLICATION_JSON)
-	@ApiOperation(
-			value = "REPLACE THIS WITH AN APPROPRIATE FUNCTION NAME",
-			notes = "REPLACE THIS WITH YOUR NOTES TO THE FUNCTION")
 	@ApiResponses(
 			value = { @ApiResponse(
 					code = HttpURLConnection.HTTP_OK,
-					message = "REPLACE THIS WITH YOUR OK MESSAGE") })
+					message = "Returned consent levels.") })
 	public Response getConsentLevels() throws ParseException {
 		logger.warning("Consent levels requested.");
 		String consentLevelString = "";
@@ -168,9 +171,57 @@ public class PrivacyControlService extends RESTService {
 			consentLevelString += "\n\n";
 		}
 		
+		// TODO Check how this is handled. Especially the closeContext.
 		JSONObject responseBody = new JSONObject();
 		responseBody.put("text", consentLevelString);
+		responseBody.put("closeContext", "false");
 		return Response.ok().entity(responseBody).build();
+	}
+	
+	@POST
+	@Path("/storeConsent")
+	@Consumes(MediaType.TEXT_PLAIN)
+	@Produces(MediaType.APPLICATION_JSON)
+	@ApiResponses(
+			value = { @ApiResponse(
+					code = HttpURLConnection.HTTP_OK,
+					message = "Returned consent levels.") })
+	public Response storeUserConsent(String body) {
+		JSONParser parser = new JSONParser(JSONParser.MODE_PERMISSIVE);
+		
+		try {
+			JSONObject bodyObj = (JSONObject) parser.parse(body);
+			logger.warning(bodyObj.toJSONString());
+			
+			// Get corresponding agent
+			UserAgentImpl agent = getAgentFromUserEmail(bodyObj.getAsString("email"));
+			if (agent == null) {
+				// TODO Build error response
+			}
+			
+			// TODO Add action parameter "level" in bot action
+			// TODO Check how multiple items can be transmitted here.
+			BigInteger consentLevel = new BigInteger(bodyObj.getAsString("level"));
+			storeUserConsentLevels(agent.getLoginName(), Arrays.asList(consentLevel));
+			
+			// TODO Check how this is handled. Especially the closeContext.
+			JSONObject responseBody = new JSONObject();
+			responseBody.put("text", "Your consent was successfully stored.");
+			responseBody.put("closeContext", "false");
+			return Response.ok().entity(responseBody).build();
+		} catch (ParseException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (EthereumException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
+		JSONObject errorMsg = new JSONObject();
+		errorMsg.put("text", "Your request failed.");
+		errorMsg.put("closeContext", "true");
+		return Response.ok().entity(errorMsg).build();
+		
 	}
 
 	// ------------------------------ Consent handling -----------------------------
@@ -269,7 +320,7 @@ public class PrivacyControlService extends RESTService {
 
 	// ------------------------------ Consent testing (to be (re)moved) -----------------------------
 
-	public void storeUserConsent(String userEmail) throws EthereumException {
+	public void storeUserConsentTest(String userEmail) throws EthereumException {
 		UserAgentImpl agent = null;
 		try {
 			String agentId = node.getAgentIdForEmail(userEmail);
@@ -391,4 +442,20 @@ public class PrivacyControlService extends RESTService {
 
 		return getLogEntries("alice@example.org");
 	}
+	
+	
+	// --------------------------- Helper functions ----------------------------
+	
+	private UserAgentImpl getAgentFromUserEmail(String userEmail) {
+		UserAgentImpl agent = null;
+		try {
+			String agentId = node.getAgentIdForEmail(userEmail);
+			agent = (UserAgentImpl) node.getAgent(agentId);
+		} catch (Exception e) {
+			logger.warning("Getting agent from userEmail failed.");
+			e.printStackTrace();
+		}
+		return agent;
+	}
+
 }
