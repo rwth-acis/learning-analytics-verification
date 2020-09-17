@@ -244,14 +244,7 @@ public class PrivacyControlService extends RESTService {
 	 * @returns boolean True/false based on user consent.
 	 */
 	public boolean checkUserConsent(String userEmail, String action) throws EthereumException {
-		UserAgentImpl agent = null;
-		try {
-			String agentId = node.getAgentIdForEmail(userEmail);
-			agent = (UserAgentImpl) node.getAgent(agentId);
-		} catch (Exception e) {
-			logger.warning("Getting agent from userEmail failed.");
-			e.printStackTrace();
-		}
+		UserAgentImpl agent = getAgentFromUserEmail(userEmail);
 		if (agent != null) {
 			// Get calling service from execution context
 			ServiceAgentImpl callingAgent = (ServiceAgentImpl) ExecutionContext.getCurrent().getCallerContext().getMainAgent();
@@ -313,8 +306,9 @@ public class PrivacyControlService extends RESTService {
 	}
 
 	/**
+	 * Return the consent levels stored for the given user.
 	 * 
-	 * @param userName
+	 * @param User (represented by login name) to revoke consent for.
 	 * @return List of all consent levels stored for the given user
 	 * @throws EthereumException
 	 */
@@ -333,14 +327,7 @@ public class PrivacyControlService extends RESTService {
 	// ------------------------------ Consent testing (to be (re)moved) -----------------------------
 
 	public void storeUserConsentTest(String userEmail) throws EthereumException {
-		UserAgentImpl agent = null;
-		try {
-			String agentId = node.getAgentIdForEmail(userEmail);
-			agent = (UserAgentImpl) node.getAgent(agentId);
-		} catch (Exception e) {
-			logger.warning("Getting agent from userEmail failed.");
-			e.printStackTrace();
-		}
+		UserAgentImpl agent = getAgentFromUserEmail(userEmail);
 
 		List<BigInteger> consentLevels = new ArrayList<BigInteger>();
 		consentLevels.add(new BigInteger("0"));
@@ -354,14 +341,7 @@ public class PrivacyControlService extends RESTService {
 
 	@SuppressWarnings("unchecked")
 	public List<BigInteger> getConsentLevelsForEmail(String userEmail) throws EthereumException {
-		UserAgentImpl agent = null;
-		try {
-			String agentId = node.getAgentIdForEmail(userEmail);
-			agent = (UserAgentImpl) node.getAgent(agentId);
-		} catch (Exception e) {
-			logger.warning("Getting agent from userEmail failed.");
-			e.printStackTrace();
-		}
+		UserAgentImpl agent = getAgentFromUserEmail(userEmail);
 
 		List<BigInteger> consentLevels;
 		try {
@@ -384,14 +364,7 @@ public class PrivacyControlService extends RESTService {
 	}
 	
 	public void createLogEntry(String userEmail, String action, String statement) throws CryptoException, EthereumException {
-		UserAgentImpl agent = null;
-		try {
-			String agentId = node.getAgentIdForEmail(userEmail);
-			agent = (UserAgentImpl) node.getAgent(agentId);
-		} catch (Exception e) {
-			logger.warning("Getting agent from userEmail failed.");
-			e.printStackTrace();
-		}
+		UserAgentImpl agent = getAgentFromUserEmail(userEmail);
 		
 		ServiceAgentImpl callingAgent = (ServiceAgentImpl) ExecutionContext.getCurrent().getCallerContext().getMainAgent();
 		String callingAgentName = callingAgent.getServiceNameVersion().getSimpleClassName().toLowerCase();
