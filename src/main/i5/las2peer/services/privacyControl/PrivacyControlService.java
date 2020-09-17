@@ -26,6 +26,7 @@ import javax.ws.rs.core.Response;
 import org.w3c.dom.Element;
 
 import i5.las2peer.api.ServiceException;
+import i5.las2peer.api.security.AgentException;
 import i5.las2peer.api.security.AgentNotFoundException;
 import i5.las2peer.api.security.AgentOperationFailedException;
 import i5.las2peer.api.security.UserAgent;
@@ -80,17 +81,17 @@ public class PrivacyControlService extends RESTService {
 
 	private final static String DEFAULT_CONFIG_FILE = "etc/consentConfiguration.xml";
 
-	private EthereumNode node;
-	private ReadWriteRegistryClient registryClient;
+	private static EthereumNode node;
+	private static ReadWriteRegistryClient registryClient;
 
-	private TransactionLogRegistry transactionLogRegistry;
+	private static TransactionLogRegistry transactionLogRegistry;
 	private String transactionLogRegistryAddress;
 
-	private ConsentRegistry consentRegistry;
+	private static ConsentRegistry consentRegistry;
 	private String consentRegistryAddress;
 
 	// TODO Create lookup structure for consent levels and operations/functions/services
-	private Map<Integer, ConsentLevel> consentLevelMap;
+	private static HashMap<Integer, ConsentLevel> consentLevelMap = new HashMap<Integer, ConsentLevel>();
 
 	// ------------------------------ Initialization -----------------------------
 
@@ -102,23 +103,21 @@ public class PrivacyControlService extends RESTService {
 	public void init() {
 		// Read consent levels from configuration file.
 		// TODO allow to change the configuration at a later stage? 
-		consentLevelMap = new HashMap<Integer, ConsentLevel>();
 		try {
 			File xmlFile = new File(DEFAULT_CONFIG_FILE);
-			if (xmlFile.exists()) {
-				Element root = XmlTools.getRootElement(xmlFile, "las2peer:consent");
-				List<Element> elements = XmlTools.getElementList(root, "consentLevel");
-				for (Element elem : elements) {
-					ConsentLevel cl = ConsentLevel.createFromXml(elem);
-					consentLevelMap.put(cl.getLevel(), cl);
-				}
-			} else {
-				// TODO Implement behavior on error
+			Element root = XmlTools.getRootElement(xmlFile, "las2peer:consent");
+			List<Element> elements = XmlTools.getElementList(root, "consentLevel");
+			for (Element elem : elements) {
+				ConsentLevel cl = ConsentLevel.createFromXml(elem);
+				consentLevelMap.put(cl.getLevel(), cl);
 			}
 		} catch (Exception e) {
-			logger.warning("Unable to read from XML. Please check for correct format.");
+			logger.warning("Unable to read from XML. Please make sure file exists and is correctly formatted.");
 			e.printStackTrace();
 		}
+
+		logger.warning("Successfully read from XML file");
+		logger.warning("Read: " + consentLevelMap.keySet().toString());
 
 		// Deploy smart contracts from wrapper classes
 		// TODO Check how this works with re-deployment. Might have to change towards a config file to store contract addresses.
@@ -138,9 +137,9 @@ public class PrivacyControlService extends RESTService {
 		}
 
 	}
-	
+
 	// ------------------------------ Bot communication ----------------------------
-	
+
 	@GET
 	@Path("/consentLevels")
 	@Produces(MediaType.APPLICATION_JSON)
@@ -152,7 +151,7 @@ public class PrivacyControlService extends RESTService {
 		logger.warning("Consent levels requested.");
 		String consentLevelString = "";
 		Set<Integer> consentLevels = consentLevelMap.keySet();
-		
+
 		for (Integer i : consentLevels) {
 			ConsentLevel cl = consentLevelMap.get(i);
 			consentLevelString += ("Level " + cl.getLevel() + ":\n");
@@ -167,14 +166,14 @@ public class PrivacyControlService extends RESTService {
 			}
 			consentLevelString += "\n\n";
 		}
-		
+
 		// TODO Check how this is handled. Especially the closeContext.
 		JSONObject responseBody = new JSONObject();
 		responseBody.put("text", consentLevelString);
 		responseBody.put("closeContext", "false");
 		return Response.ok().entity(responseBody).build();
 	}
-	
+
 	@POST
 	@Path("/storeConsent")
 	@Consumes(MediaType.TEXT_PLAIN)
@@ -182,25 +181,28 @@ public class PrivacyControlService extends RESTService {
 	@ApiResponses(
 			value = { @ApiResponse(
 					code = HttpURLConnection.HTTP_OK,
-					message = "Returned consent levels.") })
-	public Response storeUserConsent(String body) {
+					message = "Set consent level.") })
+	public Response storeConsent(String body) {
 		JSONParser parser = new JSONParser(JSONParser.MODE_PERMISSIVE);
-		
+
 		try {
 			JSONObject bodyObj = (JSONObject) parser.parse(body);
 			logger.warning(bodyObj.toJSONString());
-			
+
 			// Get corresponding agent
 			UserAgentImpl agent = getAgentFromUserEmail(bodyObj.getAsString("email"));
 			if (agent == null) {
-				// TODO Build error response
+				JSONObject errorMsg = new JSONObject();
+				errorMsg.put("text", "Your request failed.");
+				errorMsg.put("closeContext", "true");
+				return Response.ok().entity(errorMsg).build();
 			}
-			
+
 			// TODO Add action parameter "level" in bot action
 			// TODO Check how multiple items can be transmitted here.
 			BigInteger consentLevel = new BigInteger(bodyObj.getAsString("level"));
 			storeUserConsentLevels(agent.getLoginName(), Arrays.asList(consentLevel));
-			
+
 			// TODO Check how this is handled. Especially the closeContext.
 			JSONObject responseBody = new JSONObject();
 			responseBody.put("text", "Your consent was successfully stored.");
@@ -213,7 +215,129 @@ public class PrivacyControlService extends RESTService {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-		
+
+		JSONObject errorMsg = new JSONObject();
+		errorMsg.put("text", "Your request failed.");
+		errorMsg.put("closeContext", "true");
+		return Response.ok().entity(errorMsg).build();
+	}
+
+
+	@POST
+	@Path("/showGivenConsent")
+	@Consumes(MediaType.TEXT_PLAIN)
+	@Produces(MediaType.APPLICATION_JSON)
+	@ApiResponses(
+			value = { @ApiResponse(
+					code = HttpURLConnection.HTTP_OK,
+					message = "Revoked consent.") })
+	public Response showGivenConsent(String body) {
+		JSONParser parser = new JSONParser(JSONParser.MODE_PERMISSIVE);
+
+		try {
+			JSONObject bodyObj = (JSONObject) parser.parse(body);
+			String res = getConsentLevelsForEmail(bodyObj.getAsString("email")).toString();
+
+			// TODO Check how this is handled. Especially the closeContext.
+			JSONObject responseBody = new JSONObject();
+			responseBody.put("text", res);
+			responseBody.put("closeContext", "false");
+			return Response.ok().entity(responseBody).build();
+		} catch (ParseException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (EthereumException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+
+		JSONObject errorMsg = new JSONObject();
+		errorMsg.put("text", "Your request failed.");
+		errorMsg.put("closeContext", "true");
+		return Response.ok().entity(errorMsg).build();
+	}
+
+	@POST
+	@Path("/revokeConsent")
+	@Consumes(MediaType.TEXT_PLAIN)
+	@Produces(MediaType.APPLICATION_JSON)
+	@ApiResponses(
+			value = { @ApiResponse(
+					code = HttpURLConnection.HTTP_OK,
+					message = "Revoked consent.") })
+	public Response revokeConsent(String body) {
+		JSONParser parser = new JSONParser(JSONParser.MODE_PERMISSIVE);
+
+		try {
+			JSONObject bodyObj = (JSONObject) parser.parse(body);
+
+			// Get corresponding agent
+			UserAgentImpl agent = getAgentFromUserEmail(bodyObj.getAsString("email"));
+			if (agent == null) {
+				JSONObject errorMsg = new JSONObject();
+				errorMsg.put("text", "Your request failed.");
+				errorMsg.put("closeContext", "true");
+				return Response.ok().entity(errorMsg).build();
+			}
+
+			revokeUserConsent(agent.getLoginName());
+
+			// TODO Check how this is handled. Especially the closeContext.
+			JSONObject responseBody = new JSONObject();
+			responseBody.put("text", "Your consent was successfully revoked.");
+			responseBody.put("closeContext", "false");
+			return Response.ok().entity(responseBody).build();
+		} catch (ParseException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (EthereumException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+
+		JSONObject errorMsg = new JSONObject();
+		errorMsg.put("text", "Your request failed.");
+		errorMsg.put("closeContext", "true");
+		return Response.ok().entity(errorMsg).build();
+	}
+
+	@POST
+	@Path("/showLogEntries")
+	@Consumes(MediaType.TEXT_PLAIN)
+	@Produces(MediaType.APPLICATION_JSON)
+	@ApiResponses(
+			value = { @ApiResponse(
+					code = HttpURLConnection.HTTP_OK,
+					message = "Revoked consent.") })
+	public Response showLogEntries(String body) {
+		JSONParser parser = new JSONParser(JSONParser.MODE_PERMISSIVE);
+
+		try {
+			JSONObject bodyObj = (JSONObject) parser.parse(body);
+
+			// Get corresponding agent
+			UserAgentImpl agent = getAgentFromUserEmail(bodyObj.getAsString("email"));
+			if (agent == null) {
+				JSONObject errorMsg = new JSONObject();
+				errorMsg.put("text", "Your request failed.");
+				errorMsg.put("closeContext", "true");
+				return Response.ok().entity(errorMsg).build();
+			}
+			String res = getLogEntries(agent.getLoginName()).toString();
+
+			// TODO Check how this is handled. Especially the closeContext.
+			JSONObject responseBody = new JSONObject();
+			responseBody.put("text", res);
+			responseBody.put("closeContext", "false");
+			return Response.ok().entity(responseBody).build();
+		} catch (ParseException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (EthereumException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+
 		JSONObject errorMsg = new JSONObject();
 		errorMsg.put("text", "Your request failed.");
 		errorMsg.put("closeContext", "true");
@@ -256,7 +380,7 @@ public class PrivacyControlService extends RESTService {
 
 				for (String service : consent.getServices()) {
 					if (callingAgentName.contains(service.toLowerCase())) {
-						
+
 						// Check in functions if an action is transmitted.
 						if (!action.isEmpty()) {
 							for (String function : consent.getFunctions()) {
@@ -288,7 +412,7 @@ public class PrivacyControlService extends RESTService {
 			throw new EthereumException(e);
 		}
 	}
-	
+
 	/**
 	 * Revokes the consent previously stored for the given user entirely, by storing a blank consent.
 	 * 
@@ -299,7 +423,7 @@ public class PrivacyControlService extends RESTService {
 		try {
 			consentRegistry.revokeConsent(Util.padAndConvertString(userName, 32)).sendAsync().get();
 		} catch (IllegalArgumentException e) {
-			throw new IllegalArgumentException("One of the parameters used for setting the user consent is invalid.", e);
+			throw new IllegalArgumentException("One of the parameters used for revoking the user consent is invalid.", e);
 		} catch (Exception e) {
 			throw new EthereumException(e);
 		}
@@ -362,16 +486,16 @@ public class PrivacyControlService extends RESTService {
 	public String getTransactionLogRegistryAddress() {
 		return transactionLogRegistryAddress;
 	}
-	
+
 	public void createLogEntry(String userEmail, String action, String statement) throws CryptoException, EthereumException {
 		UserAgentImpl agent = getAgentFromUserEmail(userEmail);
-		
+
 		ServiceAgentImpl callingAgent = (ServiceAgentImpl) ExecutionContext.getCurrent().getCallerContext().getMainAgent();
 		String callingAgentName = callingAgent.getServiceNameVersion().getSimpleClassName().toLowerCase();
-		
+
 		// Create hash to store on chain
 		byte[] hash = Util.soliditySha3(statement);
-		
+
 		// TODO Store in las2peer shared storage?!
 		try {
 			transactionLogRegistry.createLogEntry(Util.padAndConvertString(agent.getLoginName(), 32), Util.padAndConvertString(callingAgentName, 32), Util.padAndConvertString(action, 32), hash).sendAsync().get();
@@ -402,7 +526,7 @@ public class PrivacyControlService extends RESTService {
 		}
 		return result.toString();
 	}
-	
+
 	@SuppressWarnings("unchecked")
 	public String getDataHashes(String userName) throws EthereumException {
 		List<byte[]> result;
@@ -427,17 +551,23 @@ public class PrivacyControlService extends RESTService {
 
 		return getLogEntries("alice@example.org");
 	}
-	
-	
-	// --------------------------- Helper functions ----------------------------
-	
-	private UserAgentImpl getAgentFromUserEmail(String userEmail) {
+
+
+	// --------------------------- Utility functions ----------------------------
+
+	public UserAgentImpl getAgentFromUserEmail(String userEmail) {
 		UserAgentImpl agent = null;
 		try {
 			String agentId = node.getAgentIdForEmail(userEmail);
 			agent = (UserAgentImpl) node.getAgent(agentId);
-		} catch (Exception e) {
-			logger.warning("Getting agent from userEmail failed.");
+		} catch (AgentNotFoundException e) {
+			logger.warning("Agent not found.");
+			e.printStackTrace();
+		} catch (AgentOperationFailedException e) {
+			logger.warning("Agent operation failed.");
+			e.printStackTrace();
+		} catch (AgentException e) {
+			logger.warning("Something else went wrong.");
 			e.printStackTrace();
 		}
 		return agent;
