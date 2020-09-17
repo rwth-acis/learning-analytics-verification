@@ -24,9 +24,6 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 
 import org.w3c.dom.Element;
-import org.web3j.tuples.generated.Tuple3;
-
-import com.sun.xml.internal.ws.policy.privateutil.PolicyUtils.Collections;
 
 import i5.las2peer.api.ServiceException;
 import i5.las2peer.api.security.AgentNotFoundException;
@@ -221,7 +218,6 @@ public class PrivacyControlService extends RESTService {
 		errorMsg.put("text", "Your request failed.");
 		errorMsg.put("closeContext", "true");
 		return Response.ok().entity(errorMsg).build();
-		
 	}
 
 	// ------------------------------ Consent handling -----------------------------
@@ -286,13 +282,29 @@ public class PrivacyControlService extends RESTService {
 	/**
 	 * Stores the consent level(s) for a user.
 	 * 
-	 * @param User (represented by login name) to check consent for.
+	 * @param User (represented by login name) to store consent for.
 	 * @param BigInteger necessary level of consent (as defined in config file)
 	 * @throws EthereumException
 	 */
 	public void storeUserConsentLevels(String userName, List<BigInteger> consentLevels) throws EthereumException {
 		try {
 			consentRegistry.storeConsent(Util.padAndConvertString(userName, 32), consentLevels).sendAsync().get();
+		} catch (IllegalArgumentException e) {
+			throw new IllegalArgumentException("One of the parameters used for setting the user consent is invalid.", e);
+		} catch (Exception e) {
+			throw new EthereumException(e);
+		}
+	}
+	
+	/**
+	 * Revokes the consent previously stored for the given user entirely, by storing a blank consent.
+	 * 
+	 * @param User (represented by login name) to revoke consent for.
+	 * @throws EthereumException
+	 */
+	public void revokeUserConsent(String userName) throws EthereumException {
+		try {
+			consentRegistry.revokeConsent(Util.padAndConvertString(userName, 32)).sendAsync().get();
 		} catch (IllegalArgumentException e) {
 			throw new IllegalArgumentException("One of the parameters used for setting the user consent is invalid.", e);
 		} catch (Exception e) {
