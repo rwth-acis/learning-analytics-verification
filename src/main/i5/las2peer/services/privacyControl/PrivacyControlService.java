@@ -8,12 +8,14 @@ import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TimeZone;
 
 import javax.ws.rs.Consumes;
 import javax.ws.rs.GET;
@@ -24,6 +26,7 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 
 import org.w3c.dom.Element;
+import org.web3j.tuples.generated.Tuple4;
 
 import i5.las2peer.api.ServiceException;
 import i5.las2peer.api.security.AgentException;
@@ -447,6 +450,19 @@ public class PrivacyControlService extends RESTService {
 		return consentLevels;
 	}
 
+	
+	@SuppressWarnings("unchecked")
+	public List<BigInteger> getConsentLevelsForEmail(String userEmail) throws EthereumException {
+		UserAgentImpl agent = getAgentFromUserEmail(userEmail);
+		
+		List<BigInteger> consentLevels;
+		try {
+			consentLevels = consentRegistry.getUserConsentLevels(Util.padAndConvertString(agent.getLoginName(), 32)).sendAsync().get();
+		} catch (Exception e) {
+			throw new EthereumException("No consent registered.", e);
+		}
+		return consentLevels;
+	}
 
 	// ------------------------------ Consent testing (to be (re)moved) -----------------------------
 
@@ -461,19 +477,6 @@ public class PrivacyControlService extends RESTService {
 		} catch (Exception e) {
 			throw new EthereumException("Consent registration failed.", e);
 		}
-	}
-
-	@SuppressWarnings("unchecked")
-	public List<BigInteger> getConsentLevelsForEmail(String userEmail) throws EthereumException {
-		UserAgentImpl agent = getAgentFromUserEmail(userEmail);
-
-		List<BigInteger> consentLevels;
-		try {
-			consentLevels = consentRegistry.getUserConsentLevels(Util.padAndConvertString(agent.getLoginName(), 32)).sendAsync().get();
-		} catch (Exception e) {
-			throw new EthereumException("No consent registered.", e);
-		}
-		return consentLevels;
 	}
 
 	// ------------------------- Transaction logging ----------------------------
@@ -514,17 +517,31 @@ public class PrivacyControlService extends RESTService {
 		}
 	}
 
-	@SuppressWarnings("unchecked")
+	@SuppressWarnings("deprecation")
 	public String getLogEntries(String userName) throws EthereumException {
-		List<BigInteger> result;
+		Tuple4<List<BigInteger>, List<byte[]>, List<byte[]>, List<byte[]>> initialResult;
+		String result = "";
 		try {
-			result = (List<BigInteger>) transactionLogRegistry.getLogEntries(Util.padAndConvertString(userName, 32)).send();
-			result.stream().forEach(s -> logger.warning("Result: " + s + " formatted: " + Instant.ofEpochMilli(s.longValue())));
+			initialResult = transactionLogRegistry.getLogEntries(Util.padAndConvertString(userName, 32)).send();
+			
+			List<BigInteger> timestamps = initialResult.getValue1();
+			List<byte[]> sources = initialResult.getValue2();
+			List<byte[]> operations = initialResult.getValue3();
+			List<byte[]> hashes = initialResult.getValue4();
+			
+			for (int i = 0; i < timestamps.size(); i++) {
+				LocalDateTime date = LocalDateTime.ofInstant(Instant.ofEpochSecond(timestamps.get(i).longValue()),
+                        TimeZone.getDefault().toZoneId());
+				LogEntry entry = new LogEntry(date, Util.recoverString(sources.get(i)), Util.recoverString(operations.get(i)), Util.recoverString(hashes.get(i)));
+				// TODO Cache
+				result += entry.toString();
+				
+			}
 		} catch (Exception e) {
 			e.printStackTrace();
 			throw new EthereumException(e);
 		}
-		return result.toString();
+		return result;
 	}
 
 	@SuppressWarnings("unchecked")
