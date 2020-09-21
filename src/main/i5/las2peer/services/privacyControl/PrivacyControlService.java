@@ -95,6 +95,8 @@ public class PrivacyControlService extends RESTService {
 
 	// TODO Create lookup structure for consent levels and operations/functions/services
 	private static HashMap<Integer, ConsentLevel> consentLevelMap = new HashMap<Integer, ConsentLevel>();
+	
+	private static HashMap<String, String> consentProcessingActive = new HashMap<String, String>();
 
 	// ------------------------------ Initialization -----------------------------
 
@@ -138,7 +140,6 @@ public class PrivacyControlService extends RESTService {
 			logger.warning("Initilization/Deployment of smart contracts failed!");
 			e.printStackTrace();
 		}
-
 	}
 
 	// ------------------------------ Bot communication ----------------------------
@@ -150,7 +151,7 @@ public class PrivacyControlService extends RESTService {
 			value = { @ApiResponse(
 					code = HttpURLConnection.HTTP_OK,
 					message = "Returned consent levels.") })
-	public Response getConsentLevels() throws ParseException {
+	public Response consentLevels() throws ParseException {
 		logger.warning("Consent levels requested.");
 		String consentLevelString = "";
 		Set<Integer> consentLevels = consentLevelMap.keySet();
@@ -170,10 +171,12 @@ public class PrivacyControlService extends RESTService {
 			consentLevelString += "\n\n";
 		}
 
+		logger.warning("Printing: " + consentLevelString);
+		
 		// TODO Check how this is handled. Especially the closeContext.
 		JSONObject responseBody = new JSONObject();
-		responseBody.put("text", consentLevelString);
-		responseBody.put("closeContext", "false");
+		responseBody.put("text", "" + consentLevelString);
+		responseBody.put("closeContext", "true");
 		return Response.ok().entity(responseBody).build();
 	}
 
@@ -187,30 +190,57 @@ public class PrivacyControlService extends RESTService {
 					message = "Set consent level.") })
 	public Response storeConsent(String body) {
 		JSONParser parser = new JSONParser(JSONParser.MODE_PERMISSIVE);
-
+		
 		try {
 			JSONObject bodyObj = (JSONObject) parser.parse(body);
 			logger.warning(bodyObj.toJSONString());
-
+			String channel = bodyObj.getAsString("channel");
+			
 			// Get corresponding agent
 			UserAgentImpl agent = getAgentFromUserEmail(bodyObj.getAsString("email"));
 			if (agent == null) {
-				JSONObject errorMsg = new JSONObject();
-				errorMsg.put("text", "Your request failed.");
-				errorMsg.put("closeContext", "true");
-				return Response.ok().entity(errorMsg).build();
+				JSONObject err = new JSONObject();
+				err.put("text", "No las2peer agent is available for your registered email. Make sure you have a las2peer account set up.");
+				err.put("closeContext", "true");
+				return Response.ok().entity(err).build();
+			}
+			
+			// Check if consent storage was already started.
+			if (consentProcessingActive.get(channel) != null) {
+				logger.warning("Storing consent for user " + agent.getLoginName());
+				
+				// Get consent level from message
+				logger.warning(bodyObj.getAsString("msg"));
+				String chosenConsentLevels = bodyObj.getAsString("msg").split("\\.")[0];
+				
+				List<BigInteger> levels = new ArrayList<BigInteger>();
+				for (String s : chosenConsentLevels.split("\\,")) {
+					// TODO Validate if consent object with that level exists!
+					levels.add(new BigInteger(s));
+				}
+				
+				// TODO Check how multiple items can be transmitted here.
+				storeUserConsentLevels(agent.getLoginName(), levels);
+				
+				consentProcessingActive.remove(channel);
+				
+				// Build response and close context.
+				JSONObject res = new JSONObject();
+				res.put("text", "Your consent was successfully stored.");
+				res.put("closeContext", "true");
+				return Response.ok().entity(res).build();
+			} else {
+				logger.warning("Starting consent storage for user " + agent.getLoginName());
+				
+				consentProcessingActive.put(channel, "Storage");
+				
+				// Build response and close context.
+				JSONObject res = new JSONObject();
+				res.put("text", "Bitte gib die Nummern der Einwilligungslevel an, mit denen du einverstanden bist.");
+				res.put("closeContext", "false");
+				return Response.ok().entity(res).build();
 			}
 
-			// TODO Add action parameter "level" in bot action
-			// TODO Check how multiple items can be transmitted here.
-			BigInteger consentLevel = new BigInteger(bodyObj.getAsString("level"));
-			storeUserConsentLevels(agent.getLoginName(), Arrays.asList(consentLevel));
-
-			// TODO Check how this is handled. Especially the closeContext.
-			JSONObject responseBody = new JSONObject();
-			responseBody.put("text", "Your consent was successfully stored.");
-			responseBody.put("closeContext", "false");
-			return Response.ok().entity(responseBody).build();
 		} catch (ParseException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -219,10 +249,10 @@ public class PrivacyControlService extends RESTService {
 			e.printStackTrace();
 		}
 
-		JSONObject errorMsg = new JSONObject();
-		errorMsg.put("text", "Your request failed.");
-		errorMsg.put("closeContext", "true");
-		return Response.ok().entity(errorMsg).build();
+		JSONObject err = new JSONObject();
+		err.put("text", "Your request has failed.");
+		err.put("closeContext", "true");
+		return Response.ok().entity(err).build();
 	}
 
 
@@ -559,8 +589,8 @@ public class PrivacyControlService extends RESTService {
 
 	public String testLogEntries() throws EthereumException {
 		try {
-			createLogEntry("alice@example.org", "Moodle LMS", "gradereport_user_get_grade_items", "76582352i3uh5k2j3bjk");
-			createLogEntry("alice@example.org", "Moodle LMS", "mod_forum_get_discussion_posts", "8237468276582352i3uh5k2j3bjk");
+			createLogEntry("alice", "Moodle", "viewed", "76582352i3uh5k2j3bjk");
+			createLogEntry("alice", "Moodle", "completed", "8237468276582352i3uh5k2j3bjk");
 		} catch (Exception e) {
 			logger.warning("Storage of log entry failed");
 			e.printStackTrace();
