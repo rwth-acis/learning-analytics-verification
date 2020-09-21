@@ -153,6 +153,18 @@ public class PrivacyControlService extends RESTService {
 					message = "Returned consent levels.") })
 	public Response consentLevels() throws ParseException {
 		logger.warning("Consent levels requested.");
+		String consentLevelString = getConsentLevelsFormatted();
+
+		logger.warning("Printing: " + consentLevelString);
+		
+		// TODO Check how this is handled. Especially the closeContext.
+		JSONObject responseBody = new JSONObject();
+		responseBody.put("text", "" + consentLevelString);
+		responseBody.put("closeContext", "true");
+		return Response.ok().entity(responseBody).build();
+	}
+	
+	private String getConsentLevelsFormatted() {
 		String consentLevelString = "";
 		Set<Integer> consentLevels = consentLevelMap.keySet();
 
@@ -170,14 +182,7 @@ public class PrivacyControlService extends RESTService {
 			}
 			consentLevelString += "\n\n";
 		}
-
-		logger.warning("Printing: " + consentLevelString);
-		
-		// TODO Check how this is handled. Especially the closeContext.
-		JSONObject responseBody = new JSONObject();
-		responseBody.put("text", "" + consentLevelString);
-		responseBody.put("closeContext", "true");
-		return Response.ok().entity(responseBody).build();
+		return consentLevelString;
 	}
 
 	@POST
@@ -234,13 +239,13 @@ public class PrivacyControlService extends RESTService {
 				
 				consentProcessingActive.put(channel, "Storage");
 				
+				String consentLevelString = getConsentLevelsFormatted();
 				// Build response and close context.
 				JSONObject res = new JSONObject();
-				res.put("text", "Bitte gib die Nummern der Einwilligungslevel an, mit denen du einverstanden bist.");
+				res.put("text", consentLevelString + "Bitte gib die Nummern (mehrere getrennt mit ',') der Einwilligungslevel an, mit denen du einverstanden bist.");
 				res.put("closeContext", "false");
 				return Response.ok().entity(res).build();
 			}
-
 		} catch (ParseException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
