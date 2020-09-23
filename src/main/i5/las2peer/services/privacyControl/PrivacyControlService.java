@@ -45,6 +45,10 @@ import i5.las2peer.security.ServiceAgentImpl;
 import i5.las2peer.security.UserAgentImpl;
 import i5.las2peer.serialization.MalformedXMLException;
 import i5.las2peer.serialization.XmlTools;
+import i5.las2peer.services.privacyControl.Consent.ConsentLevel;
+import i5.las2peer.services.privacyControl.Consent.ConsentRegistry;
+import i5.las2peer.services.privacyControl.TransactionLogging.LogEntry;
+import i5.las2peer.services.privacyControl.TransactionLogging.TransactionLogRegistry;
 import i5.las2peer.tools.CryptoException;
 import i5.las2peer.tools.CryptoTools;
 import io.swagger.annotations.Api;
@@ -99,7 +103,7 @@ public class PrivacyControlService extends RESTService {
 	private static HashMap<String, String> consentProcessingActive = new HashMap<String, String>();
 
 	// ------------------------------ Initialization -----------------------------
-
+	
 	/**
 	 * Initializes the privacy control service instance.
 	 * Reads information about available consent levels from XML configuration file.
