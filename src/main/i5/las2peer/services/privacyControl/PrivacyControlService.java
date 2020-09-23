@@ -152,11 +152,7 @@ public class PrivacyControlService extends RESTService {
 					code = HttpURLConnection.HTTP_OK,
 					message = "Returned consent levels.") })
 	public Response consentLevels() throws ParseException {
-		logger.warning("Consent levels requested.");
 		String consentLevelString = getConsentLevelsFormatted();
-
-		logger.warning("Printing: " + consentLevelString);
-		
 		// TODO Check how this is handled. Especially the closeContext.
 		JSONObject responseBody = new JSONObject();
 		responseBody.put("text", "" + consentLevelString);
@@ -170,17 +166,8 @@ public class PrivacyControlService extends RESTService {
 
 		for (Integer i : consentLevels) {
 			ConsentLevel cl = consentLevelMap.get(i);
-			consentLevelString += ("Level " + cl.getLevel() + ":\n");
-			consentLevelString += "Authorisierte Services: ";
-			for (String service : cl.getServices()) {
-				consentLevelString += (service + ", ");
-			}
+			consentLevelString += cl.toString();
 			consentLevelString += "\n";
-			consentLevelString += "Authorisierte Zugriffsoperationen: ";
-			for (String func : cl.getFunctions()) {
-				consentLevelString += (func + ", ");
-			}
-			consentLevelString += "\n\n";
 		}
 		return consentLevelString;
 	}
@@ -224,22 +211,20 @@ public class PrivacyControlService extends RESTService {
 					levels.add(new BigInteger(s));
 				}
 				
-				// TODO Check how multiple items can be transmitted here.
 				storeUserConsentLevels(agent.getLoginName(), levels);
 				
 				consentProcessingActive.remove(channel);
 				
 				// Build response and close context.
 				JSONObject res = new JSONObject();
-				res.put("text", "Your consent was successfully stored.");
+				res.put("text", "Einwilligung erfolgreich gespeichert.");
 				res.put("closeContext", "true");
 				return Response.ok().entity(res).build();
 			} else {
 				logger.warning("Starting consent storage for user " + agent.getLoginName());
-				
 				consentProcessingActive.put(channel, "Storage");
-				
 				String consentLevelString = getConsentLevelsFormatted();
+				
 				// Build response and close context.
 				JSONObject res = new JSONObject();
 				res.put("text", consentLevelString + "Bitte gib die Nummern (mehrere getrennt mit ',') der Einwilligungslevel an, mit denen du einverstanden bist.");
@@ -255,32 +240,45 @@ public class PrivacyControlService extends RESTService {
 		}
 
 		JSONObject err = new JSONObject();
-		err.put("text", "Your request has failed.");
+		err.put("text", "Etwas ist bei der Anfrage schiefgegangen.");
 		err.put("closeContext", "true");
 		return Response.ok().entity(err).build();
 	}
 
 
 	@POST
-	@Path("/showGivenConsent")
+	@Path("/showConsent")
 	@Consumes(MediaType.TEXT_PLAIN)
 	@Produces(MediaType.APPLICATION_JSON)
 	@ApiResponses(
 			value = { @ApiResponse(
 					code = HttpURLConnection.HTTP_OK,
-					message = "Revoked consent.") })
-	public Response showGivenConsent(String body) {
+					message = "Consent retrieved and displayed.") })
+	public Response showConsent(String body) {
 		JSONParser parser = new JSONParser(JSONParser.MODE_PERMISSIVE);
 
 		try {
 			JSONObject bodyObj = (JSONObject) parser.parse(body);
-			String res = getConsentLevelsForEmail(bodyObj.getAsString("email")).toString();
+			
+			// Retrieve stored consent levels
+			List<BigInteger> givenConsent = getConsentLevelsForEmail(bodyObj.getAsString("email"));
+			
+			String resText = "";
+			if (givenConsent == null || givenConsent.isEmpty()) {
+				resText +=  "Aktuell liegt uns keine Einwilligung vor";
+			} else {
+				resText += "Aktuell liegt eine Einwilligung zu den folgenden Datenverarbeitungsleveln vor: \n";
+				for (BigInteger consent : givenConsent) {
+					resText += consentLevelMap.get(consent.intValue()).toString();
+					resText += "\n";
+				}
+			}
 
-			// TODO Check how this is handled. Especially the closeContext.
-			JSONObject responseBody = new JSONObject();
-			responseBody.put("text", res);
-			responseBody.put("closeContext", "false");
-			return Response.ok().entity(responseBody).build();
+			// Build response and close context.
+			JSONObject res = new JSONObject();
+			res.put("text", resText);
+			res.put("closeContext", "true");
+			return Response.ok().entity(res).build();
 		} catch (ParseException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -289,10 +287,10 @@ public class PrivacyControlService extends RESTService {
 			e.printStackTrace();
 		}
 
-		JSONObject errorMsg = new JSONObject();
-		errorMsg.put("text", "Your request failed.");
-		errorMsg.put("closeContext", "true");
-		return Response.ok().entity(errorMsg).build();
+		JSONObject err = new JSONObject();
+		err.put("text", "Etwas ist bei der Anfrage schiefgegangen.");
+		err.put("closeContext", "true");
+		return Response.ok().entity(err).build();
 	}
 
 	@POST
@@ -323,7 +321,7 @@ public class PrivacyControlService extends RESTService {
 			// TODO Check how this is handled. Especially the closeContext.
 			JSONObject responseBody = new JSONObject();
 			responseBody.put("text", "Your consent was successfully revoked.");
-			responseBody.put("closeContext", "false");
+			responseBody.put("closeContext", "true");
 			return Response.ok().entity(responseBody).build();
 		} catch (ParseException e) {
 			// TODO Auto-generated catch block
@@ -346,7 +344,7 @@ public class PrivacyControlService extends RESTService {
 	@ApiResponses(
 			value = { @ApiResponse(
 					code = HttpURLConnection.HTTP_OK,
-					message = "Revoked consent.") })
+					message = "Showed log entries.") })
 	public Response showLogEntries(String body) {
 		JSONParser parser = new JSONParser(JSONParser.MODE_PERMISSIVE);
 
@@ -361,12 +359,18 @@ public class PrivacyControlService extends RESTService {
 				errorMsg.put("closeContext", "true");
 				return Response.ok().entity(errorMsg).build();
 			}
-			String res = getLogEntries(agent.getLoginName()).toString();
+			
+			logger.warning("Requesting logs for user " + agent.getLoginName());
+			
+			String res = "";
+			res += getLogEntries(agent.getLoginName()).toString();
 
+			logger.warning("Showing logs: " + res);
+			
 			// TODO Check how this is handled. Especially the closeContext.
 			JSONObject responseBody = new JSONObject();
 			responseBody.put("text", res);
-			responseBody.put("closeContext", "false");
+			responseBody.put("closeContext", "true");
 			return Response.ok().entity(responseBody).build();
 		} catch (ParseException e) {
 			// TODO Auto-generated catch block
@@ -564,14 +568,21 @@ public class PrivacyControlService extends RESTService {
 			List<byte[]> operations = initialResult.getValue3();
 			List<byte[]> hashes = initialResult.getValue4();
 			
+			List<LogEntry> logs = new ArrayList<LogEntry>();
+			
 			for (int i = 0; i < timestamps.size(); i++) {
+				logger.warning("Found logentry with index " + i);
 				LocalDateTime date = LocalDateTime.ofInstant(Instant.ofEpochSecond(timestamps.get(i).longValue()),
                         TimeZone.getDefault().toZoneId());
 				LogEntry entry = new LogEntry(date, Util.recoverString(sources.get(i)), Util.recoverString(operations.get(i)), Util.recoverString(hashes.get(i)));
 				// TODO Cache
-				result += entry.toString();
-				
+				logs.add(entry);
 			}
+			
+			for (LogEntry l : logs) {
+				result += l.toString();
+			}
+			logger.warning("Printing " + logs.size() + " entries: \n" + result);
 		} catch (Exception e) {
 			e.printStackTrace();
 			throw new EthereumException(e);

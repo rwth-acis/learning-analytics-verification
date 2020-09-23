@@ -63,6 +63,24 @@ public class ConsentLevel {
 	public void setServices(List<String> services) {
 		this.services = services;
 	}
+	
+	@Override
+	public String toString() {
+		String result = "";
+		result += ("Zustimmungslevel " + getLevel() + ":\n");
+		result += "Authorisiert Zugriffe auf Learning Analytics Daten \n ";
+		result += "aus Datenquellen/Services: ";
+		for (String service : getServices()) {
+			result += (service + ", ");
+		}
+		result += "\n";
+		result += "mit Inhalt/Typ: ";
+		for (String func : getFunctions()) {
+			result += (func + ", ");
+		}
+		result += "\n";
+		return result;
+	}
 
 	/**
 	 * Sets the state of the object based on a read xml representation.

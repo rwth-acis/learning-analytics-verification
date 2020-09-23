@@ -50,8 +50,7 @@ public class LogEntry {
 	
 	@Override
 	public String toString() {
-		// TODO Implement
-		return "";
+		return "LOG recorded at " + getTimestamp() + ": Source: " + getSource() + ", Type: " + getOperation() + ", Hash: " + getDataHash() + "\n";
 	}
 	
 }
