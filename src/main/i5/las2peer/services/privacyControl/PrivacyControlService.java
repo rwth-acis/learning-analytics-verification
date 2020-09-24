@@ -578,7 +578,7 @@ public class PrivacyControlService extends RESTService {
 				logger.warning("Found logentry with index " + i);
 				LocalDateTime date = LocalDateTime.ofInstant(Instant.ofEpochSecond(timestamps.get(i).longValue()),
                         TimeZone.getDefault().toZoneId());
-				LogEntry entry = new LogEntry(date, Util.recoverString(sources.get(i)), Util.recoverString(operations.get(i)), Util.recoverString(hashes.get(i)));
+				LogEntry entry = new LogEntry(date, Util.recoverString(sources.get(i)), Util.recoverString(operations.get(i)), Util.bytesToHexString(hashes.get(i)));
 				// TODO Cache
 				logs.add(entry);
 			}
