@@ -28,6 +28,7 @@ import javax.ws.rs.core.Response;
 import org.w3c.dom.Element;
 import org.web3j.tuples.generated.Tuple4;
 
+import i5.las2peer.api.ManualDeployment;
 import i5.las2peer.api.ServiceException;
 import i5.las2peer.api.security.AgentException;
 import i5.las2peer.api.security.AgentNotFoundException;
@@ -81,6 +82,7 @@ import net.minidev.json.parser.ParseException;
 						name = "Lennart Bengtson",
 						url = "rwth-aachen.de",
 						email = "lennart.bengtson@rwth-aachen.de")))
+@ManualDeployment
 @ServicePath("/Privacy")
 public class PrivacyControlService extends RESTService {
 
@@ -104,6 +106,11 @@ public class PrivacyControlService extends RESTService {
 
 	// ------------------------------ Initialization -----------------------------
 	
+	public PrivacyControlService() {
+		super();
+		setFieldValues();
+	}
+	
 	/**
 	 * Initializes the privacy control service instance.
 	 * Reads information about available consent levels from XML configuration file.
@@ -125,23 +132,21 @@ public class PrivacyControlService extends RESTService {
 			e.printStackTrace();
 		}
 
-		logger.warning("Successfully read from XML file");
-		logger.warning("Read: " + consentLevelMap.keySet().toString());
+		logger.info("Successfully read from XML file");
 
 		// Deploy smart contracts from wrapper classes
-		// TODO Check how this works with re-deployment. Might have to change towards a config file to store contract addresses.
 		try {
 			ServiceAgentImpl agent = (ServiceAgentImpl) this.getAgent();
 			node = (EthereumNode) agent.getRunningAtNode();
 			registryClient = node.getRegistryClient();
 
+			logger.warning("ConsentRegistry deployed at: " + consentRegistryAddress);
 			consentRegistry = deployConsentRegistry();
-			consentRegistryAddress = consentRegistry.getContractAddress();
 
+			logger.warning("TransactionLogRegistry deployed at: " + transactionLogRegistryAddress);
 			transactionLogRegistry = deployTransactionLogRegistry();
-			transactionLogRegistryAddress = transactionLogRegistry.getContractAddress();
 		} catch (ServiceException e) {
-			logger.warning("Initilization/Deployment of smart contracts failed!");
+			logger.warning("Initilization of smart contracts failed!");
 			e.printStackTrace();
 		}
 	}
@@ -393,7 +398,8 @@ public class PrivacyControlService extends RESTService {
 	// ------------------------------ Consent handling -----------------------------
 
 	private ConsentRegistry deployConsentRegistry() {
-		ConsentRegistry contract = registryClient.deploySmartContract(ConsentRegistry.class, ConsentRegistry.BINARY);
+		// ConsentRegistry contract = registryClient.deploySmartContract(ConsentRegistry.class, ConsentRegistry.BINARY);
+		ConsentRegistry contract = registryClient.loadSmartContract(ConsentRegistry.class, consentRegistryAddress);
 		return contract;
 	}
 
@@ -525,7 +531,8 @@ public class PrivacyControlService extends RESTService {
 	// ------------------------- Transaction logging ----------------------------
 
 	private TransactionLogRegistry deployTransactionLogRegistry() {
-		TransactionLogRegistry contract = registryClient.deploySmartContract(TransactionLogRegistry.class, TransactionLogRegistry.BINARY);
+		// TransactionLogRegistry contract = registryClient.deploySmartContract(TransactionLogRegistry.class, TransactionLogRegistry.BINARY);
+		TransactionLogRegistry contract = registryClient.loadSmartContract(TransactionLogRegistry.class, transactionLogRegistryAddress);
 		return contract;
 	}
 
