@@ -19,3 +19,4 @@
 archiva_credentials.xml
 /bin/
 /src/test/
+/keystore/
