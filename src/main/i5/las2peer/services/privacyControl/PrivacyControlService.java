@@ -109,14 +109,28 @@ public class PrivacyControlService extends RESTService {
 	public PrivacyControlService() {
 		super();
 		setFieldValues();
+		
+		// Wait for service to be started before executing the initialization
+		// Necessary because node (the service is running at) would not be known otherwise
+		new java.util.Timer().schedule( 
+		        new java.util.TimerTask() {
+		            @Override
+		            public void run() {
+		                init();
+		            }
+		        }, 
+		        10000 
+		);
 	}
 	
 	/**
 	 * Initializes the privacy control service instance.
 	 * Reads information about available consent levels from XML configuration file.
-	 * Deploys necessary smart contracts.
+	 * Loads/Deploys necessary smart contracts.
 	 */
 	public void init() {
+		logger.info("Initializing privacy control service...");
+		
 		// Read consent levels from configuration file.
 		// TODO allow to change the configuration at a later stage? 
 		try {
@@ -131,9 +145,9 @@ public class PrivacyControlService extends RESTService {
 			logger.warning("Unable to read from XML. Please make sure file exists and is correctly formatted.");
 			e.printStackTrace();
 		}
-
-		logger.info("Successfully read from XML file");
-
+		logger.info("Successfully read from XML consent configuration file.");
+		
+		logger.info("Loading deployed smart contracts...");
 		// Deploy smart contracts from wrapper classes
 		try {
 			ServiceAgentImpl agent = (ServiceAgentImpl) this.getAgent();
@@ -167,18 +181,6 @@ public class PrivacyControlService extends RESTService {
 		responseBody.put("text", "" + consentLevelString);
 		responseBody.put("closeContext", "true");
 		return Response.ok().entity(responseBody).build();
-	}
-	
-	private String getConsentLevelsFormatted() {
-		String consentLevelString = "";
-		Set<Integer> consentLevels = consentLevelMap.keySet();
-
-		for (Integer i : consentLevels) {
-			ConsentLevel cl = consentLevelMap.get(i);
-			consentLevelString += cl.toString();
-			consentLevelString += "\n";
-		}
-		return consentLevelString;
 	}
 
 	@POST
@@ -645,6 +647,18 @@ public class PrivacyControlService extends RESTService {
 			e.printStackTrace();
 		}
 		return agent;
+	}
+	
+	private String getConsentLevelsFormatted() {
+		String consentLevelString = "";
+		Set<Integer> consentLevels = consentLevelMap.keySet();
+
+		for (Integer i : consentLevels) {
+			ConsentLevel cl = consentLevelMap.get(i);
+			consentLevelString += cl.toString();
+			consentLevelString += "\n";
+		}
+		return consentLevelString;
 	}
 
 }
