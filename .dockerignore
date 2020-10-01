@@ -1,0 +1,9 @@
+export
+lib
+service
+servicebundle
+log
+node-storage
+tmp
+output
+la-registry-contracts/node_modules

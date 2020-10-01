@@ -18,7 +18,7 @@ CONFIG_ENDPOINT_WAIT=${CONFIG_ENDPOINT_WAIT:-21600}
 
 NODE_ID_SEED=${NODE_ID_SEED:-$RANDOM}
 
-ETH_PROPS_DIR=/app/las2peer/etc/
+ETH_PROPS_DIR=/app/etc/
 ETH_PROPS=i5.las2peer.registry.data.RegistryConfiguration.properties
 
 function waitForEndpoint {
@@ -103,7 +103,7 @@ else
     fi
 fi
 
-export SERVICE_PROPERTY_FILE='/app/las2peer/etc/i5.las2peer.services.privacyControl.PrivacyControlService.properties'
+export SERVICE_PROPERTY_FILE='/app/etc/i5.las2peer.services.privacyControl.PrivacyControlService.properties'
 
 if [ -n "$LAS2PEER_ETH_HOST" ]; then
 	echo Waiting for Ethereum client at $(host $LAS2PEER_ETH_HOST):$(port $LAS2PEER_ETH_HOST)...
@@ -122,10 +122,10 @@ fi
 
 echo Serving config files at :8001 ...
 echo -e "\a" # ding
-cd /app/las2peer/
+cd /app
 pm2 start --silent http-server -- ./etc -p 8001
 
-cd /app/las2peer
+cd /app
 if [ -n "$LAS2PEER_BOOTSTRAP" ]; then
     if waitForEndpoint $(host ${LAS2PEER_BOOTSTRAP}) $(port ${LAS2PEER_BOOTSTRAP}) 600; then
         echo Las2peer bootstrap available, continuing.
@@ -163,7 +163,7 @@ echo Starting las2peer node ...
 if [ -n "$LAS2PEER_ETH_HOST" ]; then
     echo ... using ethereum boot procedure: 
     java $(echo $ADDITIONAL_JAVA_ARGS) \
-        -cp "core/src/main/resources/:core/export/jars/*:restmapper/export/jars/*:webconnector/export/jars/*:core/lib/*:restmapper/lib/*:webconnector/lib/*:lib*" i5.las2peer.tools.L2pNodeLauncher \
+        -cp "lib/*" i5.las2peer.tools.L2pNodeLauncher \
         --service-directory service \
         --port $LAS2PEER_PORT \
         $([ -n "$LAS2PEER_BOOTSTRAP" ] && echo "--bootstrap $LAS2PEER_BOOTSTRAP") \
@@ -179,7 +179,7 @@ if [ -n "$LAS2PEER_ETH_HOST" ]; then
 else
     echo ... using non-ethereum boot procedure:
     java $(echo $ADDITIONAL_JAVA_ARGS) \
-        -cp "core/src/main/resources/:core/export/jars/*:restmapper/export/jars/*:webconnector/export/jars/*:core/lib/*:restmapper/lib/*:webconnector/lib/*:lib*" i5.las2peer.tools.L2pNodeLauncher \
+        -cp "lib/*" i5.las2peer.tools.L2pNodeLauncher \
         --service-directory service \
         --port $LAS2PEER_PORT \
         $([ -n "$LAS2PEER_BOOTSTRAP" ] && echo "--bootstrap $LAS2PEER_BOOTSTRAP") \
