@@ -83,7 +83,7 @@ import net.minidev.json.parser.ParseException;
 						url = "rwth-aachen.de",
 						email = "lennart.bengtson@rwth-aachen.de")))
 @ManualDeployment
-@ServicePath("/Privacy")
+@ServicePath("/privacy")
 public class PrivacyControlService extends RESTService {
 
 	private final static L2pLogger logger = L2pLogger.getInstance(PrivacyControlService.class.getName());
@@ -99,9 +99,7 @@ public class PrivacyControlService extends RESTService {
 	private static ConsentRegistry consentRegistry;
 	private String consentRegistryAddress;
 
-	// TODO Create lookup structure for consent levels and operations/functions/services
 	private static HashMap<Integer, ConsentLevel> consentLevelMap = new HashMap<Integer, ConsentLevel>();
-	
 	private static HashMap<String, String> consentProcessingActive = new HashMap<String, String>();
 
 	// ------------------------------ Initialization -----------------------------
@@ -132,7 +130,6 @@ public class PrivacyControlService extends RESTService {
 		logger.info("Initializing privacy control service...");
 		
 		// Read consent levels from configuration file.
-		// TODO allow to change the configuration at a later stage? 
 		try {
 			File xmlFile = new File(DEFAULT_CONFIG_FILE);
 			Element root = XmlTools.getRootElement(xmlFile, "las2peer:consent");
@@ -154,10 +151,10 @@ public class PrivacyControlService extends RESTService {
 			node = (EthereumNode) agent.getRunningAtNode();
 			registryClient = node.getRegistryClient();
 
-			logger.warning("ConsentRegistry deployed at: " + consentRegistryAddress);
+			logger.info("ConsentRegistry deployed at: " + consentRegistryAddress);
 			consentRegistry = deployConsentRegistry();
 
-			logger.warning("TransactionLogRegistry deployed at: " + transactionLogRegistryAddress);
+			logger.info("TransactionLogRegistry deployed at: " + transactionLogRegistryAddress);
 			transactionLogRegistry = deployTransactionLogRegistry();
 		} catch (ServiceException e) {
 			logger.warning("Initilization of smart contracts failed!");
@@ -176,7 +173,6 @@ public class PrivacyControlService extends RESTService {
 					message = "Returned consent levels.") })
 	public Response consentLevels() throws ParseException {
 		String consentLevelString = getConsentLevelsFormatted();
-		// TODO Check how this is handled. Especially the closeContext.
 		JSONObject responseBody = new JSONObject();
 		responseBody.put("text", "" + consentLevelString);
 		responseBody.put("closeContext", "true");
@@ -196,7 +192,6 @@ public class PrivacyControlService extends RESTService {
 		
 		try {
 			JSONObject bodyObj = (JSONObject) parser.parse(body);
-			logger.warning(bodyObj.toJSONString());
 			String channel = bodyObj.getAsString("channel");
 			
 			// Get corresponding agent
@@ -210,10 +205,9 @@ public class PrivacyControlService extends RESTService {
 			
 			// Check if consent storage was already started.
 			if (consentProcessingActive.get(channel) != null) {
-				logger.warning("Storing consent for user " + agent.getLoginName());
+				logger.info("Storing consent for user " + agent.getLoginName());
 				
 				// Get consent level from message
-				logger.warning(bodyObj.getAsString("msg"));
 				String chosenConsentLevels = bodyObj.getAsString("msg").split("\\.")[0];
 				
 				List<BigInteger> levels = new ArrayList<BigInteger>();
@@ -232,7 +226,7 @@ public class PrivacyControlService extends RESTService {
 				res.put("closeContext", "true");
 				return Response.ok().entity(res).build();
 			} else {
-				logger.warning("Starting consent storage for user " + agent.getLoginName());
+				logger.info("Starting consent storage for user " + agent.getLoginName());
 				consentProcessingActive.put(channel, "Storage");
 				String consentLevelString = getConsentLevelsFormatted();
 				
@@ -271,8 +265,17 @@ public class PrivacyControlService extends RESTService {
 		try {
 			JSONObject bodyObj = (JSONObject) parser.parse(body);
 			
+			// Get corresponding agent
+			UserAgentImpl agent = getAgentFromUserEmail(bodyObj.getAsString("email"));
+			if (agent == null) {
+				JSONObject err = new JSONObject();
+				err.put("text", "No las2peer agent is available for your registered email. Make sure you have a las2peer account set up.");
+				err.put("closeContext", "true");
+				return Response.ok().entity(err).build();
+			}
+			
 			// Retrieve stored consent levels
-			List<BigInteger> givenConsent = getConsentLevelsForEmail(bodyObj.getAsString("email"));
+			List<BigInteger> givenConsent = getConsentLevelsForLoginName(agent.getLoginName());
 			
 			String resText = "";
 			if (givenConsent == null || givenConsent.isEmpty()) {
@@ -285,7 +288,6 @@ public class PrivacyControlService extends RESTService {
 				}
 			}
 
-			// Build response and close context.
 			JSONObject res = new JSONObject();
 			res.put("text", resText);
 			res.put("closeContext", "true");
@@ -329,7 +331,6 @@ public class PrivacyControlService extends RESTService {
 
 			revokeUserConsent(agent.getLoginName());
 
-			// TODO Check how this is handled. Especially the closeContext.
 			JSONObject responseBody = new JSONObject();
 			responseBody.put("text", "Your consent was successfully revoked.");
 			responseBody.put("closeContext", "true");
@@ -371,14 +372,13 @@ public class PrivacyControlService extends RESTService {
 				return Response.ok().entity(errorMsg).build();
 			}
 			
-			logger.warning("Requesting logs for user " + agent.getLoginName());
+			logger.info("Requesting logs for user " + agent.getLoginName());
 			
 			String res = "";
 			res += getLogEntries(agent.getLoginName()).toString();
 
-			logger.warning("Showing logs: " + res);
+			logger.info("Showing logs: " + res);
 			
-			// TODO Check how this is handled. Especially the closeContext.
 			JSONObject responseBody = new JSONObject();
 			responseBody.put("text", res);
 			responseBody.put("closeContext", "true");
@@ -409,10 +409,6 @@ public class PrivacyControlService extends RESTService {
 		return consentRegistryAddress;
 	}
 
-	public boolean checkUserConsent(String userEmail) throws EthereumException {
-		return checkUserConsent(userEmail, "");
-	}
-
 	/**
 	 * Function that is invoked by a service (e.g LMS proxy) to check for the consent of a given user.
 	 * 
@@ -427,7 +423,7 @@ public class PrivacyControlService extends RESTService {
 			// Get calling service from execution context
 			ServiceAgentImpl callingAgent = (ServiceAgentImpl) ExecutionContext.getCurrent().getCallerContext().getMainAgent();
 			String callingAgentName = callingAgent.getServiceNameVersion().getSimpleClassName().toLowerCase();
-			logger.warning("Requesting service name: " + callingAgentName);
+			logger.info("Requesting service name: " + callingAgentName);
 
 			for (BigInteger level : getConsentLevelsForLoginName(agent.getLoginName())) {
 				ConsentLevel consent = consentLevelMap.get(level.intValue());
@@ -501,35 +497,6 @@ public class PrivacyControlService extends RESTService {
 		return consentLevels;
 	}
 
-	
-	@SuppressWarnings("unchecked")
-	public List<BigInteger> getConsentLevelsForEmail(String userEmail) throws EthereumException {
-		UserAgentImpl agent = getAgentFromUserEmail(userEmail);
-		
-		List<BigInteger> consentLevels;
-		try {
-			consentLevels = consentRegistry.getUserConsentLevels(Util.padAndConvertString(agent.getLoginName(), 32)).sendAsync().get();
-		} catch (Exception e) {
-			throw new EthereumException("No consent registered.", e);
-		}
-		return consentLevels;
-	}
-
-	// ------------------------------ Consent testing (to be (re)moved) -----------------------------
-
-	public void storeUserConsentTest(String userEmail) throws EthereumException {
-		UserAgentImpl agent = getAgentFromUserEmail(userEmail);
-
-		List<BigInteger> consentLevels = new ArrayList<BigInteger>();
-		consentLevels.add(new BigInteger("0"));
-		consentLevels.add(new BigInteger("1"));
-		try {
-			consentRegistry.storeConsent(Util.padAndConvertString(agent.getLoginName(), 32), consentLevels).sendAsync().get();
-		} catch (Exception e) {
-			throw new EthereumException("Consent registration failed.", e);
-		}
-	}
-
 	// ------------------------- Transaction logging ----------------------------
 
 	private TransactionLogRegistry deployTransactionLogRegistry() {
@@ -551,7 +518,6 @@ public class PrivacyControlService extends RESTService {
 		// Create hash to store on chain
 		byte[] hash = Util.soliditySha3(statement);
 
-		// TODO Store in las2peer shared storage?!
 		try {
 			transactionLogRegistry.createLogEntry(Util.padAndConvertString(agent.getLoginName(), 32), Util.padAndConvertString(callingAgentName, 32), Util.padAndConvertString(action, 32), hash).sendAsync().get();
 		} catch (Exception e) {
@@ -588,7 +554,6 @@ public class PrivacyControlService extends RESTService {
 				LocalDateTime date = LocalDateTime.ofInstant(Instant.ofEpochSecond(timestamps.get(i).longValue()),
                         TimeZone.getDefault().toZoneId());
 				LogEntry entry = new LogEntry(date, Util.recoverString(sources.get(i)), Util.recoverString(operations.get(i)), Util.bytesToHexString(hashes.get(i)));
-				// TODO Cache
 				logs.add(entry);
 			}
 			
@@ -615,19 +580,6 @@ public class PrivacyControlService extends RESTService {
 		}
 		return result.toString();
 	}
-
-	public String testLogEntries() throws EthereumException {
-		try {
-			createLogEntry("alice", "Moodle", "viewed", "76582352i3uh5k2j3bjk");
-			createLogEntry("alice", "Moodle", "completed", "8237468276582352i3uh5k2j3bjk");
-		} catch (Exception e) {
-			logger.warning("Storage of log entry failed");
-			e.printStackTrace();
-		}
-
-		return getLogEntries("alice@example.org");
-	}
-
 
 	// --------------------------- Utility functions ----------------------------
 
