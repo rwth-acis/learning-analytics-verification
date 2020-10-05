@@ -7,3 +7,4 @@ node-storage
 tmp
 output
 la-registry-contracts/node_modules
+la-registry-contracts/build/

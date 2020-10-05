@@ -27,20 +27,6 @@ function waitForEndpoint {
 
 function host { echo ${1%%:*}; }
 function port { echo ${1#*:}; }
-function truffleMigrate { 
-    echo Starting truffle migration ...
-    echo "just to be sure the Eth client is ready, wait an extra $EXTRA_ETH_WAIT secs ..."
-    echo "    (Yes, this is a potential source of problems, maybe increase.)"
-    sleep $EXTRA_ETH_WAIT
-    echo "wait over, proceeding."
-    cd /app/las2peer-registry-contracts
-    ./node_modules/.bin/truffle migrate --network docker_boot 2>&1 | tee migration.log
-    echo done. Setting contract addresses in config file ...
-    # yeah, this isn't fun:
-    cat migration.log | grep -A5 "\(Deploying\|Replacing\|contract address\) \'\(CommunityTagIndex\|UserRegistry\|ServiceRegistry\|ReputationRegistry\)\'" | grep '\(Deploying\|Replacing\|contract address\)' | tr -d " '>:" | sed -e '$!N;s/\n//;s/Deploying//;s/Replacing//;s/contractaddress/Address = /;s/./\l&/' >> "${ETH_PROPS_DIR}${ETH_PROPS}"
-    cp migration.log /app/las2peer/node-storage/migration.log
-    echo done. 
- }
  
  function truffleMigrateLa { 
     echo Starting truffle migration of LA contracts...
@@ -52,8 +38,9 @@ function truffleMigrate {
     cp migration-la.log /app/las2peer/node-storage/migration-la.log
     echo done. 
  }
-
-if [ -n "$LAS2PEER_CONFIG_ENDPOINT" ]; then
+ 
+ # Delete this for cluster deployment?!
+ if [ -n "$LAS2PEER_CONFIG_ENDPOINT" ]; then
     echo Attempting to autoconfigure registry blockchain parameters ...
     if waitForEndpoint $(host ${LAS2PEER_CONFIG_ENDPOINT}) $(port ${LAS2PEER_CONFIG_ENDPOINT}) $CONFIG_ENDPOINT_WAIT; then
         echo "Port is available (but that may just be the Docker daemon)."
@@ -69,38 +56,8 @@ fi
 if [ -n "$LAS2PEER_ETH_HOST" ]; then
     echo Replacing Ethereum client host in config files ...
     ETH_HOST_SUB=$(host $LAS2PEER_ETH_HOST)
-    sed -i "s|^endpoint.*$|endpoint = http://${LAS2PEER_ETH_HOST}|" "${ETH_PROPS_DIR}${ETH_PROPS}"
-    sed -i "s/eth-bootstrap/${ETH_HOST_SUB}/" /app/las2peer-registry-contracts/truffle.js
 	sed -i "s/eth-bootstrap/${ETH_HOST_SUB}/" /app/la-registry-contracts/truffle.js
     echo done.
-fi
-
-if [ -s "/app/las2peer/node-storage/migration.log" ]; then
-    echo Found old migration.log, importing...
-    cat /app/las2peer/node-storage/migration.log
-
-    cat /app/las2peer/node-storage/migration.log | grep -A5 "\(Deploying\|Replacing\|contract address\) \'\(CommunityTagIndex\|UserRegistry\|ServiceRegistry\|ReputationRegistry\)\'" | grep '\(Deploying\|Replacing\|contract address\)' | tr -d " '>:" | sed -e '$!N;s/\n//;s/Deploying//;s/Replacing//;s/contractaddress/Address = /;s/./\l&/' >> "${ETH_PROPS_DIR}${ETH_PROPS}"
-
-    echo done.
-fi
-
-if [ -n "$LAS2PEER_BOOTSTRAP" ]; then
-    echo Skipping migration, contracts should already be deployed
-else
-    if [ -n "$LAS2PEER_ETH_HOST" ]; then
-        echo Waiting for Ethereum client at $(host $LAS2PEER_ETH_HOST):$(port $LAS2PEER_ETH_HOST)...
-        if waitForEndpoint $(host $LAS2PEER_ETH_HOST) $(port $LAS2PEER_ETH_HOST) 300; then
-            echo Found Eth client. 
-            if [ -s "/app/las2peer/node-storage/migration.log" ]; then
-                echo Migrated from logs.
-            else
-                truffleMigrate
-            fi
-        else
-            echo Ethereum client not accessible. Aborting.
-            exit 2
-        fi
-    fi
 fi
 
 export SERVICE_PROPERTY_FILE='/app/etc/i5.las2peer.services.privacyControl.PrivacyControlService.properties'
@@ -110,6 +67,7 @@ if [ -n "$LAS2PEER_ETH_HOST" ]; then
 	if waitForEndpoint $(host $LAS2PEER_ETH_HOST) $(port $LAS2PEER_ETH_HOST) 100; then
 		echo Found Eth client. 
 		if [ -s "/app/las2peer/node-storage/migration-la.log" ]; then
+			cat /app/las2peer/node-storage/migration-la.log | grep -A5 "\(Deploying\|Replacing\|contract address\) \'\(ConsentRegistry\|TransactionLogRegistry\)\'" | grep '\(Deploying\|Replacing\|contract address\)' | tr -d " '>:" | sed -e '$!N;s/\n//;s/Deploying//;s/Replacing//;s/contractaddress/Address = /;s/./\l&/' >> "${SERVICE_PROPERTY_FILE}"
 			echo Migrated from logs.
 		else
 			truffleMigrateLa
@@ -119,11 +77,6 @@ if [ -n "$LAS2PEER_ETH_HOST" ]; then
 		exit 2
 	fi
 fi
-
-echo Serving config files at :8001 ...
-echo -e "\a" # ding
-cd /app
-pm2 start --silent http-server -- ./etc -p 8001
 
 cd /app
 if [ -n "$LAS2PEER_BOOTSTRAP" ]; then

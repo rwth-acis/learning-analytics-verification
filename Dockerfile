@@ -43,8 +43,9 @@ RUN npm install
 
 WORKDIR /app
 RUN ant jar
-COPY --from=buildcache --chown=build:build /app-cache/las2peer-registry-contracts/node_modules /app/la-registry-contracts/node_modules
+
 WORKDIR /app/la-registry-contracts
+COPY --from=buildcache --chown=build:build /app-cache/las2peer-registry-contracts/node_modules /app/la-registry-contracts/node_modules
 RUN npm install
 
 WORKDIR /app
