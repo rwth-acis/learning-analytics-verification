@@ -126,9 +126,7 @@ if [ -n "$LAS2PEER_ETH_HOST" ]; then
         uploadStartupDirectory \
 		startService\("'""${SERVICE}""'", "'""${SERVICE_PASSPHRASE}""'"\) \
 		startWebConnector \
-        "node=getNodeAsEthereumNode()" "registry=node.getRegistryClient()" "n=getNodeAsEthereumNode()" "r=n.getRegistryClient()" \
-        $(echo $ADDITIONAL_PROMPT_CMDS) \
-        interactive
+        "node=getNodeAsEthereumNode()" "registry=node.getRegistryClient()" "n=getNodeAsEthereumNode()" "r=n.getRegistryClient()"
 else
     echo ... using non-ethereum boot procedure:
     java $(echo $ADDITIONAL_JAVA_ARGS) \
@@ -138,7 +136,5 @@ else
         $([ -n "$LAS2PEER_BOOTSTRAP" ] && echo "--bootstrap $LAS2PEER_BOOTSTRAP") \
         --node-id-seed $NODE_ID_SEED \
         $(echo $ADDITIONAL_LAUNCHER_ARGS) \
-        startWebConnector \
-        $(echo $ADDITIONAL_PROMPT_CMDS) \
-        interactive
+        startWebConnector
 fi

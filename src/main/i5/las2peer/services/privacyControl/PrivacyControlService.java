@@ -83,7 +83,7 @@ import net.minidev.json.parser.ParseException;
 						url = "rwth-aachen.de",
 						email = "lennart.bengtson@rwth-aachen.de")))
 @ManualDeployment
-@ServicePath("/privacy")
+@ServicePath("privacy")
 public class PrivacyControlService extends RESTService {
 
 	private final static L2pLogger logger = L2pLogger.getInstance(PrivacyControlService.class.getName());
