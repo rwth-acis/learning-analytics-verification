@@ -1,9 +1,13 @@
 package i5.las2peer.services.privacyControl.TransactionLogging;
 
+import java.text.SimpleDateFormat;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
 public class LogEntry {
-
+	
+	DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd-MM-yyyy hh:mm:ss");
+	
 	private LocalDateTime timestamp;
 	private String source;
 	private String operation;
@@ -18,6 +22,10 @@ public class LogEntry {
 
 	public LocalDateTime getTimestamp() {
 		return timestamp;
+	}
+	
+	public String getTimestampFormatted() {
+		return timestamp.format(formatter);
 	}
 
 	public void setTimestamp(LocalDateTime timestamp) {
@@ -50,7 +58,8 @@ public class LogEntry {
 	
 	@Override
 	public String toString() {
-		return "LOG recorded at " + getTimestamp() + ": Source: " + getSource() + ", Type: " + getOperation() + ", Hash: " + getDataHash() + "\n";
+		// TODO Export as JSON (file)?!
+		return getTimestampFormatted() + ": Source: " + getSource() + ", Type: " + getOperation() + "\n" + "Hash: " + getDataHash() + "\n";
 	}
 	
 }

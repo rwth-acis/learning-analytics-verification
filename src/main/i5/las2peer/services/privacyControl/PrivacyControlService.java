@@ -213,7 +213,7 @@ public class PrivacyControlService extends RESTService {
 			UserAgentImpl agent = getAgentFromUserEmail(bodyObj.getAsString("email"));
 			if (agent == null) {
 				JSONObject err = new JSONObject();
-				err.put("text", "No las2peer agent is available for your registered email. Make sure you have a las2peer account set up.");
+				err.put("text", "Zu deiner Email ist kein las2peer User registriert. Bitte registriere dich um diesen Service zu nutzen.");
 				err.put("closeContext", "true");
 				return Response.ok().entity(err).build();
 			}
@@ -284,7 +284,7 @@ public class PrivacyControlService extends RESTService {
 			UserAgentImpl agent = getAgentFromUserEmail(bodyObj.getAsString("email"));
 			if (agent == null) {
 				JSONObject err = new JSONObject();
-				err.put("text", "No las2peer agent is available for your registered email. Make sure you have a las2peer account set up.");
+				err.put("text", "Zu deiner Email ist kein las2peer User registriert. Bitte registriere dich um diesen Service zu nutzen.");
 				err.put("closeContext", "true");
 				return Response.ok().entity(err).build();
 			}
@@ -294,9 +294,9 @@ public class PrivacyControlService extends RESTService {
 			
 			String resText = "";
 			if (givenConsent == null || givenConsent.isEmpty()) {
-				resText +=  "Aktuell liegt uns keine Einwilligung vor";
+				resText +=  "Aktuell liegt uns keine Einwilligung zu Deinem User vor.";
 			} else {
-				resText += "Aktuell liegt eine Einwilligung zu den folgenden Datenverarbeitungsleveln vor: \n";
+				resText += "Es liegt eine Einwilligung zu folgenden Services/Zugriffsarten vor: \n";
 				for (BigInteger consent : givenConsent) {
 					resText += consentLevelMap.get(consent.intValue()).toString();
 					resText += "\n";
@@ -339,7 +339,7 @@ public class PrivacyControlService extends RESTService {
 			UserAgentImpl agent = getAgentFromUserEmail(bodyObj.getAsString("email"));
 			if (agent == null) {
 				JSONObject errorMsg = new JSONObject();
-				errorMsg.put("text", "Your request failed.");
+				errorMsg.put("text", "Zu deiner Email ist kein las2peer User registriert. Bitte registriere dich um diesen Service zu nutzen.");
 				errorMsg.put("closeContext", "true");
 				return Response.ok().entity(errorMsg).build();
 			}
@@ -347,7 +347,7 @@ public class PrivacyControlService extends RESTService {
 			revokeUserConsent(agent.getLoginName());
 
 			JSONObject responseBody = new JSONObject();
-			responseBody.put("text", "Your consent was successfully revoked.");
+			responseBody.put("text", "Deine Einstellungen wurden angepasst.");
 			responseBody.put("closeContext", "true");
 			return Response.ok().entity(responseBody).build();
 		} catch (ParseException e) {
@@ -359,7 +359,7 @@ public class PrivacyControlService extends RESTService {
 		}
 
 		JSONObject errorMsg = new JSONObject();
-		errorMsg.put("text", "Your request failed.");
+		errorMsg.put("text", "Etwas ist bei der Anfrage schiefgegangen.");
 		errorMsg.put("closeContext", "true");
 		return Response.ok().entity(errorMsg).build();
 	}
@@ -382,7 +382,7 @@ public class PrivacyControlService extends RESTService {
 			UserAgentImpl agent = getAgentFromUserEmail(bodyObj.getAsString("email"));
 			if (agent == null) {
 				JSONObject errorMsg = new JSONObject();
-				errorMsg.put("text", "Your request failed.");
+				errorMsg.put("text", "Zu deiner Email ist kein las2peer User registriert. Bitte registriere dich um diesen Service zu nutzen.");
 				errorMsg.put("closeContext", "true");
 				return Response.ok().entity(errorMsg).build();
 			}
@@ -572,9 +572,15 @@ public class PrivacyControlService extends RESTService {
 				logs.add(entry);
 			}
 			
-			for (LogEntry l : logs) {
-				result += l.toString();
+			if (logs.isEmpty()) {
+				result += "Derzeit liegen keine geloggten Datenzugriffe zu deinem Account vor.";
+			} else {
+				result += "Es wurden folgende Datenzugriffe geloggt: \n\n";
+				for (LogEntry l : logs) {
+					result += l.toString();
+				}				
 			}
+			
 			logger.warning("Printing " + logs.size() + " entries: \n" + result);
 		} catch (Exception e) {
 			e.printStackTrace();
