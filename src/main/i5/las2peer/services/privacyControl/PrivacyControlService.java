@@ -82,8 +82,7 @@ import net.minidev.json.parser.ParseException;
 						name = "Lennart Bengtson",
 						url = "rwth-aachen.de",
 						email = "lennart.bengtson@rwth-aachen.de")))
-@ManualDeployment
-@ServicePath("privacy")
+@ServicePath("/privacy")
 public class PrivacyControlService extends RESTService {
 
 	private final static L2pLogger logger = L2pLogger.getInstance(PrivacyControlService.class.getName());
@@ -94,31 +93,36 @@ public class PrivacyControlService extends RESTService {
 	private static ReadWriteRegistryClient registryClient;
 
 	private static TransactionLogRegistry transactionLogRegistry;
-	private String transactionLogRegistryAddress;
+	private static String transactionLogRegistryAddress;
 
 	private static ConsentRegistry consentRegistry;
-	private String consentRegistryAddress;
+	private static String consentRegistryAddress;
 
 	private static HashMap<Integer, ConsentLevel> consentLevelMap = new HashMap<Integer, ConsentLevel>();
 	private static HashMap<String, String> consentProcessingActive = new HashMap<String, String>();
+	
+	private static boolean initialized = false;
 
 	// ------------------------------ Initialization -----------------------------
 	
 	public PrivacyControlService() {
 		super();
-		setFieldValues();
 		
-		// Wait for service to be started before executing the initialization
-		// Necessary because node (the service is running at) would not be known otherwise
-		new java.util.Timer().schedule( 
-		        new java.util.TimerTask() {
-		            @Override
-		            public void run() {
-		                init();
-		            }
-		        }, 
-		        10000 
-		);
+		// Workaround, as each call to the service triggers the constructor.
+		// TODO Find proper solution
+		if (!initialized) {
+			// Wait for service to be started before executing the initialization
+			// Necessary because node (the service is running at) would not be known otherwise
+			new java.util.Timer().schedule( 
+			        new java.util.TimerTask() {
+			            @Override
+			            public void run() {
+			                init();
+			            }
+			        }, 
+			        10000 
+			);
+		}
 	}
 	
 	/**
@@ -144,22 +148,33 @@ public class PrivacyControlService extends RESTService {
 		}
 		logger.info("Successfully read from XML consent configuration file.");
 		
+		logger.info("Reading contract addresses from configuration file.");
+		
+		// Get smart contract addresses from configuration file.
+		LaRegistryConfiguration config = new LaRegistryConfiguration();
+		consentRegistryAddress = config.getConsentRegistryAddress();
+		transactionLogRegistryAddress = config.getTransactionLogRegistryAddress();
+		
+		logger.info("TransactionLogRegistry deployed at: " + transactionLogRegistryAddress);
+		logger.info("ConsentRegistry deployed at: " + consentRegistryAddress);
+		
 		logger.info("Loading deployed smart contracts...");
+		
 		// Deploy smart contracts from wrapper classes
 		try {
 			ServiceAgentImpl agent = (ServiceAgentImpl) this.getAgent();
 			node = (EthereumNode) agent.getRunningAtNode();
 			registryClient = node.getRegistryClient();
 
-			logger.info("ConsentRegistry deployed at: " + consentRegistryAddress);
 			consentRegistry = deployConsentRegistry();
-
-			logger.info("TransactionLogRegistry deployed at: " + transactionLogRegistryAddress);
 			transactionLogRegistry = deployTransactionLogRegistry();
+			initialized = true;
 		} catch (ServiceException e) {
 			logger.warning("Initilization of smart contracts failed!");
 			e.printStackTrace();
 		}
+		
+		logger.info("Done. Proceeding");
 	}
 
 	// ------------------------------ Bot communication ----------------------------

@@ -21,6 +21,8 @@ NODE_ID_SEED=${NODE_ID_SEED:-$RANDOM}
 ETH_PROPS_DIR=/app/etc/
 ETH_PROPS=i5.las2peer.registry.data.RegistryConfiguration.properties
 
+LA_ETH_PROPS_FILE='/app/etc/i5.las2peer.services.privacyControl.LaRegistryConfiguration.properties'
+
 function waitForEndpoint {
     /app/wait-for-command/wait-for-command.sh -c "nc -z ${1} ${2:-80}" --time ${3:-10} --quiet
 }
@@ -34,7 +36,7 @@ function port { echo ${1#*:}; }
     ./node_modules/.bin/truffle migrate --network docker_boot 2>&1 | tee migration-la.log
     echo done. Setting contract addresses in config file ...
     # yeah, this isn't fun:
-    cat migration-la.log | grep -A5 "\(Deploying\|Replacing\|contract address\) \'\(ConsentRegistry\|TransactionLogRegistry\)\'" | grep '\(Deploying\|Replacing\|contract address\)' | tr -d " '>:" | sed -e '$!N;s/\n//;s/Deploying//;s/Replacing//;s/contractaddress/Address = /;s/./\l&/' >> "${SERVICE_PROPERTY_FILE}"
+    cat migration-la.log | grep -A5 "\(Deploying\|Replacing\|contract address\) \'\(ConsentRegistry\|TransactionLogRegistry\)\'" | grep '\(Deploying\|Replacing\|contract address\)' | tr -d " '>:" | sed -e '$!N;s/\n//;s/Deploying//;s/Replacing//;s/contractaddress/Address = /;s/./\l&/' >> "${LA_ETH_PROPS_FILE}"
     cp migration-la.log /app/las2peer/node-storage/migration-la.log
     echo done. 
  }
@@ -67,7 +69,7 @@ if [ -n "$LAS2PEER_ETH_HOST" ]; then
 	if waitForEndpoint $(host $LAS2PEER_ETH_HOST) $(port $LAS2PEER_ETH_HOST) 100; then
 		echo Found Eth client. 
 		if [ -s "/app/las2peer/node-storage/migration-la.log" ]; then
-			cat /app/las2peer/node-storage/migration-la.log | grep -A5 "\(Deploying\|Replacing\|contract address\) \'\(ConsentRegistry\|TransactionLogRegistry\)\'" | grep '\(Deploying\|Replacing\|contract address\)' | tr -d " '>:" | sed -e '$!N;s/\n//;s/Deploying//;s/Replacing//;s/contractaddress/Address = /;s/./\l&/' >> "${SERVICE_PROPERTY_FILE}"
+			cat /app/las2peer/node-storage/migration-la.log | grep -A5 "\(Deploying\|Replacing\|contract address\) \'\(ConsentRegistry\|TransactionLogRegistry\)\'" | grep '\(Deploying\|Replacing\|contract address\)' | tr -d " '>:" | sed -e '$!N;s/\n//;s/Deploying//;s/Replacing//;s/contractaddress/Address = /;s/./\l&/' >> "${LA_ETH_PROPS_FILE}"
 			echo Migrated from logs.
 		else
 			truffleMigrateLa
