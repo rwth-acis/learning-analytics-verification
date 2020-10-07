@@ -179,6 +179,42 @@ public class PrivacyControlService extends RESTService {
 
 	// ------------------------------ Bot communication ----------------------------
 
+	@POST
+	@Path("/greeting")
+	@Consumes(MediaType.TEXT_PLAIN)
+	@Produces(MediaType.APPLICATION_JSON)
+	@ApiResponses(
+			value = { @ApiResponse(
+					code = HttpURLConnection.HTTP_OK,
+					message = "Returned greeting.") })
+	public Response greeting(String body) throws ParseException {
+		JSONParser parser = new JSONParser(JSONParser.MODE_PERMISSIVE);
+		
+		JSONObject bodyObj = (JSONObject) parser.parse(body);
+		
+		UserAgentImpl agent = getAgentFromUserEmail(bodyObj.getAsString("email"));
+		if (agent == null) {
+			JSONObject err = new JSONObject();
+			err.put("text", "Zu deiner Email ist kein las2peer User registriert. Bitte registriere dich um diesen Service zu nutzen.");
+			err.put("closeContext", "true");
+			return Response.ok().entity(err).build();
+		}
+		
+		String greeting = 
+				"Hallo, "
+				+ agent.getLoginName() + "\n \n"
+				+ "Ich kann folgendes fuer dich tun: \n" 
+				+ "- Informationen zu moeglichen Datenverarbeitungseinwilligungen anzeigen. \n"
+				+ "- Deine Einwilligung zur Datenverarbeitung bearbeiten. \n"
+				+ "- Deine Einwilligung zur Datenverarbeitung anzeigen. \n"
+				+ "- Geloggte Zugriffe auf deine persoenlichen Daten anzeigen. \n";
+		
+		JSONObject responseBody = new JSONObject();
+		responseBody.put("text", "" + greeting);
+		responseBody.put("closeContext", "true");
+		return Response.ok().entity(responseBody).build();
+	}
+	
 	@GET
 	@Path("/consentLevels")
 	@Produces(MediaType.APPLICATION_JSON)
