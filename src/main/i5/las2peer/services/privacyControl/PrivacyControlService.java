@@ -100,31 +100,30 @@ public class PrivacyControlService extends RESTService {
 
 	private static HashMap<Integer, ConsentLevel> consentLevelMap = new HashMap<Integer, ConsentLevel>();
 	private static HashMap<String, String> consentProcessingActive = new HashMap<String, String>();
-	
+
 	private static boolean initialized = false;
 
 	// ------------------------------ Initialization -----------------------------
-	
+
 	public PrivacyControlService() {
 		super();
-		
-		// Workaround, as each call to the service triggers the constructor.
-		// TODO Find proper solution
+
+		// Workaround, to avoid reloading the contracts.
 		if (!initialized) {
 			// Wait for service to be started before executing the initialization
 			// Necessary because node (the service is running at) would not be known otherwise
 			new java.util.Timer().schedule( 
-			        new java.util.TimerTask() {
-			            @Override
-			            public void run() {
-			                init();
-			            }
-			        }, 
-			        10000 
-			);
+					new java.util.TimerTask() {
+						@Override
+						public void run() {
+							init();
+						}
+					}, 
+					10000 
+					);
 		}
 	}
-	
+
 	/**
 	 * Initializes the privacy control service instance.
 	 * Reads information about available consent levels from XML configuration file.
@@ -132,7 +131,7 @@ public class PrivacyControlService extends RESTService {
 	 */
 	public void init() {
 		logger.info("Initializing privacy control service...");
-		
+
 		// Read consent levels from configuration file.
 		try {
 			File xmlFile = new File(DEFAULT_CONFIG_FILE);
@@ -147,19 +146,19 @@ public class PrivacyControlService extends RESTService {
 			e.printStackTrace();
 		}
 		logger.info("Successfully read from XML consent configuration file.");
-		
+
 		logger.info("Reading contract addresses from configuration file.");
-		
+
 		// Get smart contract addresses from configuration file.
 		LaRegistryConfiguration config = new LaRegistryConfiguration();
 		consentRegistryAddress = config.getConsentRegistryAddress();
 		transactionLogRegistryAddress = config.getTransactionLogRegistryAddress();
-		
+
 		logger.info("TransactionLogRegistry deployed at: " + transactionLogRegistryAddress);
 		logger.info("ConsentRegistry deployed at: " + consentRegistryAddress);
-		
+
 		logger.info("Loading deployed smart contracts...");
-		
+
 		// Deploy smart contracts from wrapper classes
 		try {
 			ServiceAgentImpl agent = (ServiceAgentImpl) this.getAgent();
@@ -169,11 +168,11 @@ public class PrivacyControlService extends RESTService {
 			consentRegistry = deployConsentRegistry();
 			transactionLogRegistry = deployTransactionLogRegistry();
 			initialized = true;
-		} catch (ServiceException e) {
+		} catch (Exception e) {
 			logger.warning("Initilization of smart contracts failed!");
 			e.printStackTrace();
 		}
-		
+
 		logger.info("Done. Proceeding");
 	}
 
@@ -188,19 +187,18 @@ public class PrivacyControlService extends RESTService {
 					message = "Returned greeting.") })
 	public Response showGreeting() throws ParseException {
 		String greeting = 
-				"Hallo, \n \n"
-				+ "Ich kann folgendes fuer dich tun: \n" 
-				+ "- Informationen zu moeglichen Datenverarbeitungseinwilligungen anzeigen. \n"
-				+ "- Deine Einwilligung zur Datenverarbeitung bearbeiten. \n"
-				+ "- Deine Einwilligung zur Datenverarbeitung anzeigen. \n"
-				+ "- Geloggte Zugriffe auf deine persoenlichen Daten anzeigen. \n";
-		
+				"Hallo, ich kann folgendes fuer dich tun: \n" 
+						+ "- Informationen zu moeglichen Datenverarbeitungseinwilligungen anzeigen (Optionen auflisten). \n"
+						+ "- Deine Einwilligung zur Datenverarbeitung bearbeiten (Einwilligung abgeben/widerrufen). \n"
+						+ "- Deine Einwilligung zur Datenverarbeitung anzeigen (Zustimmung anzeigen). \n"
+						+ "- Geloggte Zugriffe auf deine persoenlichen Daten anzeigen (geloggte Transaktionen anzeigen). \n";
+
 		JSONObject responseBody = new JSONObject();
 		responseBody.put("text", "" + greeting);
 		responseBody.put("closeContext", "true");
 		return Response.ok().entity(responseBody).build();
 	}
-	
+
 	@GET
 	@Path("/consentLevels")
 	@Produces(MediaType.APPLICATION_JSON)
@@ -223,40 +221,49 @@ public class PrivacyControlService extends RESTService {
 	@ApiResponses(
 			value = { @ApiResponse(
 					code = HttpURLConnection.HTTP_OK,
-					message = "Set consent level.") })
+					message = "Consent level set.") })
 	public Response storeConsent(String body) {
 		JSONParser parser = new JSONParser(JSONParser.MODE_PERMISSIVE);
+		String channel = "";
 		
 		try {
 			JSONObject bodyObj = (JSONObject) parser.parse(body);
-			String channel = bodyObj.getAsString("channel");
+			channel = bodyObj.getAsString("channel");
 			
 			// Get corresponding agent
 			UserAgentImpl agent = getAgentFromUserEmail(bodyObj.getAsString("email"));
 			if (agent == null) {
 				JSONObject err = new JSONObject();
-				err.put("text", "Zu deiner Email ist kein las2peer User registriert. Bitte registriere dich um diesen Service zu nutzen.");
+				err.put("text", "Zu deiner Email ist kein las2peer User registriert. Bitte registriere Dich um diesen Service zu nutzen.");
 				err.put("closeContext", "true");
 				return Response.ok().entity(err).build();
 			}
-			
+
 			// Check if consent storage was already started.
 			if (consentProcessingActive.get(channel) != null) {
-				logger.info("Storing consent for user " + agent.getLoginName());
-				
+				logger.info("Continue consent storage for user " + agent.getLoginName());
+
 				// Get consent level from message
 				String chosenConsentLevels = bodyObj.getAsString("msg").split("\\.")[0];
-				
-				List<BigInteger> levels = new ArrayList<BigInteger>();
-				for (String s : chosenConsentLevels.split("\\,")) {
-					// TODO Validate if consent object with that level exists!
-					levels.add(new BigInteger(s));
+
+				try {
+					List<BigInteger> levels = new ArrayList<BigInteger>();
+					for (String s : chosenConsentLevels.split("\\,")) {
+						// TODO Validate if consent object with that level exists!
+						levels.add(new BigInteger(s));
+					}
+					storeUserConsentLevels(agent.getLoginName(), levels);
+					
+				} catch (NumberFormatException e) {
+					// Build error but don't close context when ID is not valid.
+					JSONObject err = new JSONObject();
+					err.put("text", "Bitte gib eine oder mehrere gueltige Ids ein.");
+					err.put("closeContext", "false");
+					return Response.ok().entity(err).build();
 				}
 				
-				storeUserConsentLevels(agent.getLoginName(), levels);
-				
 				consentProcessingActive.remove(channel);
-				
+
 				// Build response and close context.
 				JSONObject res = new JSONObject();
 				res.put("text", "Einwilligung erfolgreich gespeichert.");
@@ -266,10 +273,10 @@ public class PrivacyControlService extends RESTService {
 				logger.info("Starting consent storage for user " + agent.getLoginName());
 				consentProcessingActive.put(channel, "Storage");
 				String consentLevelString = getConsentLevelsFormatted();
-				
+
 				// Build response and close context.
 				JSONObject res = new JSONObject();
-				res.put("text", consentLevelString + "Bitte gib die Ids (Eingabeformat: 0,1) der Zustimmungen an, mit denen du einverstanden bist.");
+				res.put("text", "Bitte gib die Ids (z.B. 1,2) der Datenverarbeitungsoptionen an, mit denen Du einverstanden bist. \n" + consentLevelString);
 				res.put("closeContext", "false");
 				return Response.ok().entity(res).build();
 			}
@@ -281,6 +288,10 @@ public class PrivacyControlService extends RESTService {
 			e.printStackTrace();
 		}
 
+		if (!channel.isEmpty()) {
+			consentProcessingActive.remove(channel);
+		}
+		
 		JSONObject err = new JSONObject();
 		err.put("text", "Etwas ist bei der Anfrage schiefgegangen.");
 		err.put("closeContext", "true");
@@ -301,19 +312,19 @@ public class PrivacyControlService extends RESTService {
 
 		try {
 			JSONObject bodyObj = (JSONObject) parser.parse(body);
-			
+
 			// Get corresponding agent
 			UserAgentImpl agent = getAgentFromUserEmail(bodyObj.getAsString("email"));
 			if (agent == null) {
 				JSONObject err = new JSONObject();
-				err.put("text", "Zu deiner Email ist kein las2peer User registriert. Bitte registriere dich um diesen Service zu nutzen.");
+				err.put("text", "Zu deiner Email ist kein las2peer User registriert. Bitte registriere Dich um diesen Service zu nutzen.");
 				err.put("closeContext", "true");
 				return Response.ok().entity(err).build();
 			}
-			
+
 			// Retrieve stored consent levels
 			List<BigInteger> givenConsent = getConsentLevelsForLoginName(agent.getLoginName());
-			
+
 			String resText = "";
 			if (givenConsent == null || givenConsent.isEmpty()) {
 				resText +=  "Aktuell liegt uns keine Einwilligung zu Deinem User vor.";
@@ -361,7 +372,7 @@ public class PrivacyControlService extends RESTService {
 			UserAgentImpl agent = getAgentFromUserEmail(bodyObj.getAsString("email"));
 			if (agent == null) {
 				JSONObject errorMsg = new JSONObject();
-				errorMsg.put("text", "Zu deiner Email ist kein las2peer User registriert. Bitte registriere dich um diesen Service zu nutzen.");
+				errorMsg.put("text", "Zu deiner Email ist kein las2peer User registriert. Bitte registriere Dich um diesen Service zu nutzen.");
 				errorMsg.put("closeContext", "true");
 				return Response.ok().entity(errorMsg).build();
 			}
@@ -404,18 +415,18 @@ public class PrivacyControlService extends RESTService {
 			UserAgentImpl agent = getAgentFromUserEmail(bodyObj.getAsString("email"));
 			if (agent == null) {
 				JSONObject errorMsg = new JSONObject();
-				errorMsg.put("text", "Zu deiner Email ist kein las2peer User registriert. Bitte registriere dich um diesen Service zu nutzen.");
+				errorMsg.put("text", "Zu deiner Email ist kein las2peer User registriert. Bitte registriere Dich um diesen Service zu nutzen.");
 				errorMsg.put("closeContext", "true");
 				return Response.ok().entity(errorMsg).build();
 			}
-			
+
 			logger.info("Requesting logs for user " + agent.getLoginName());
-			
+
 			String res = "";
 			res += getLogEntries(agent.getLoginName()).toString();
 
 			logger.info("Showing logs: " + res);
-			
+
 			JSONObject responseBody = new JSONObject();
 			responseBody.put("text", res);
 			responseBody.put("closeContext", "true");
@@ -479,7 +490,7 @@ public class PrivacyControlService extends RESTService {
 					}
 				}
 			}
-			
+
 			// Log failed extraction attempt.
 			createLogEntry(agent.getLoginName(), callingAgentName, action, "");
 		}
@@ -552,16 +563,18 @@ public class PrivacyControlService extends RESTService {
 	public void createLogEntry(String userEmail, String action, String statement) throws CryptoException, EthereumException {
 		UserAgentImpl agent = getAgentFromUserEmail(userEmail);
 
-		ServiceAgentImpl callingAgent = (ServiceAgentImpl) ExecutionContext.getCurrent().getCallerContext().getMainAgent();
-		String callingAgentName = callingAgent.getServiceNameVersion().getSimpleClassName().toLowerCase();
-
-		// Create hash to store on chain
-		byte[] hash = Util.soliditySha3(statement);
-
-		try {
-			transactionLogRegistry.createLogEntry(Util.padAndConvertString(agent.getLoginName(), 32), Util.padAndConvertString(callingAgentName, 32), Util.padAndConvertString(action, 32), hash).sendAsync().get();
-		} catch (Exception e) {
-			throw new EthereumException(e);
+		if (agent != null) {
+			ServiceAgentImpl callingAgent = (ServiceAgentImpl) ExecutionContext.getCurrent().getCallerContext().getMainAgent();
+			String callingAgentName = callingAgent.getServiceNameVersion().getSimpleClassName().toLowerCase();
+	
+			// Create hash to store on chain
+			byte[] hash = Util.soliditySha3(statement);
+	
+			try {
+				transactionLogRegistry.createLogEntry(Util.padAndConvertString(agent.getLoginName(), 32), Util.padAndConvertString(callingAgentName, 32), Util.padAndConvertString(action, 32), hash).sendAsync().get();
+			} catch (Exception e) {
+				throw new EthereumException(e);
+			}
 		}
 	}
 
@@ -581,22 +594,22 @@ public class PrivacyControlService extends RESTService {
 		String result = "";
 		try {
 			initialResult = transactionLogRegistry.getLogEntries(Util.padAndConvertString(userName, 32)).send();
-			
+
 			List<BigInteger> timestamps = initialResult.getValue1();
 			List<byte[]> sources = initialResult.getValue2();
 			List<byte[]> operations = initialResult.getValue3();
 			List<byte[]> hashes = initialResult.getValue4();
-			
+
 			List<LogEntry> logs = new ArrayList<LogEntry>();
-			
+
 			for (int i = 0; i < timestamps.size(); i++) {
 				logger.warning("Found logentry with index " + i);
 				LocalDateTime date = LocalDateTime.ofInstant(Instant.ofEpochSecond(timestamps.get(i).longValue()),
-                        TimeZone.getDefault().toZoneId());
+						TimeZone.getDefault().toZoneId());
 				LogEntry entry = new LogEntry(date, Util.recoverString(sources.get(i)), Util.recoverString(operations.get(i)), Util.bytesToHexString(hashes.get(i)));
 				logs.add(entry);
 			}
-			
+
 			if (logs.isEmpty()) {
 				result += "Derzeit liegen keine geloggten Datenzugriffe zu deinem Account vor.";
 			} else {
@@ -605,7 +618,7 @@ public class PrivacyControlService extends RESTService {
 					result += l.toString();
 				}				
 			}
-			
+
 			logger.warning("Printing " + logs.size() + " entries: \n" + result);
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -630,6 +643,10 @@ public class PrivacyControlService extends RESTService {
 	// --------------------------- Utility functions ----------------------------
 
 	public UserAgentImpl getAgentFromUserEmail(String userEmail) {
+		if (userEmail == null || userEmail.isEmpty()) {
+			return null;
+		}
+		
 		UserAgentImpl agent = null;
 		try {
 			String agentId = node.getAgentIdForEmail(userEmail);
@@ -646,7 +663,7 @@ public class PrivacyControlService extends RESTService {
 		}
 		return agent;
 	}
-	
+
 	private String getConsentLevelsFormatted() {
 		String consentLevelString = "";
 		Set<Integer> consentLevels = consentLevelMap.keySet();
