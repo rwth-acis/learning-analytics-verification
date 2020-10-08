@@ -269,7 +269,7 @@ public class PrivacyControlService extends RESTService {
 				
 				// Build response and close context.
 				JSONObject res = new JSONObject();
-				res.put("text", consentLevelString + "Bitte gib die Nummern (mehrere getrennt mit ',') der Einwilligungslevel an, mit denen du einverstanden bist.");
+				res.put("text", consentLevelString + "Bitte gib die Ids (Eingabeformat: 0,1) der Zustimmungen an, mit denen du einverstanden bist.");
 				res.put("closeContext", "false");
 				return Response.ok().entity(res).build();
 			}
@@ -478,7 +478,10 @@ public class PrivacyControlService extends RESTService {
 						}
 					}
 				}
-			}			
+			}
+			
+			// Log failed extraction attempt.
+			createLogEntry(agent.getLoginName(), callingAgentName, action, "");
 		}
 		return false;
 	}

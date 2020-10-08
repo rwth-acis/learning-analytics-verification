@@ -1,6 +1,6 @@
 <las2peer:consent>
 	<consentLevel>
-		<name>No consent</name>
+		<name>Keine Einwilligung</name>
 		<level>0</level>
 		<functions>
 			<function></function>
@@ -11,15 +11,29 @@
 	</consentLevel>
 	
 	<consentLevel>
-		<name>LMS Extraction</name>
+		<name>LMS Daten</name>
 		<level>1</level>
 		<functions>
 			<function>viewed</function>
+			<function>completed</function>
 			<function>received</function>
 		</functions>
 		<services>
 			<service>Moodle</service>
 			<service>Onyx</service>
+		</services>
+	</consentLevel>
+	
+	<consentLevel>
+		<name>Weitere LA Daten</name>
+		<level>2</level>
+		<functions>
+			<function>dummy1</function>
+			<function>dummy2</function>
+		</functions>
+		<services>
+			<service>Test1</service>
+			<service>Test2</service>
 		</services>
 	</consentLevel>
 </las2peer:consent>

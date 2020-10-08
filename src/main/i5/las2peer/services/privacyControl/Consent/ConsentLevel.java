@@ -67,14 +67,13 @@ public class ConsentLevel {
 	@Override
 	public String toString() {
 		String result = "";
-		result += ("Zustimmungslevel " + getLevel() + ":\n");
-		result += "Authorisiert Zugriffe auf Learning Analytics Daten \n ";
-		result += "aus Datenquellen/Services: ";
+		result += ("Zustimmung: " + getName() + ", Id: " + getLevel() + "\n");
+		result += "Authorisiert Datenquellen/Services: ";
 		for (String service : getServices()) {
 			result += (service + ", ");
 		}
 		result += "\n";
-		result += "mit Inhalt/Typ: ";
+		result += "und Typ/Aktion: ";
 		for (String func : getFunctions()) {
 			result += (func + ", ");
 		}
