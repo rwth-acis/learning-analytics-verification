@@ -10,6 +10,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
 import java.util.TimeZone;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 import javax.ws.rs.Consumes;
 import javax.ws.rs.GET;
@@ -87,6 +89,8 @@ public class PrivacyControlService extends RESTService {
 	private static HashMap<Integer, ConsentLevel> consentLevelMap = new HashMap<Integer, ConsentLevel>();
 	private static HashMap<String, String> consentProcessingActive = new HashMap<String, String>();
 
+	private static ConcurrentMap<String, List<BigInteger>> consentCache = new ConcurrentHashMap<>();
+	
 	private static boolean initialized = false;
 
 	// ------------------------------ Initialization -----------------------------
@@ -493,6 +497,12 @@ public class PrivacyControlService extends RESTService {
 	public void storeUserConsentLevels(String userName, List<BigInteger> consentLevels) throws EthereumException {
 		try {
 			consentRegistry.storeConsent(Util.padAndConvertString(userName, 32), consentLevels).sendAsync().get();
+			
+			// Reset cache if necessary.
+			if (consentCache.containsKey(userName)) {				
+				logger.info("Resetting consent cache.");
+				consentCache.remove(userName);
+			}
 		} catch (IllegalArgumentException e) {
 			throw new IllegalArgumentException("One of the parameters used for setting the user consent is invalid.", e);
 		} catch (Exception e) {
@@ -509,6 +519,12 @@ public class PrivacyControlService extends RESTService {
 	public void revokeUserConsent(String userName) throws EthereumException {
 		try {
 			consentRegistry.revokeConsent(Util.padAndConvertString(userName, 32)).sendAsync().get();
+			
+			// Reset cache if necessary.
+			if (consentCache.containsKey(userName)) {				
+				logger.info("Resetting consent cache.");
+				consentCache.remove(userName);
+			}
 		} catch (IllegalArgumentException e) {
 			throw new IllegalArgumentException("One of the parameters used for revoking the user consent is invalid.", e);
 		} catch (Exception e) {
@@ -525,9 +541,20 @@ public class PrivacyControlService extends RESTService {
 	 */
 	@SuppressWarnings("unchecked")
 	public List<BigInteger> getConsentLevelsForLoginName(String userName) throws EthereumException {
+		// Check if entry in cache exists and return.
+		if (consentCache.containsKey(userName)) {
+			logger.info("Loading consent from cache.");
+			return consentCache.get(userName);
+		}
+		
+		// Try to get information from the blockchain and return.
 		List<BigInteger> consentLevels;
 		try {
 			consentLevels = consentRegistry.getUserConsentLevels(Util.padAndConvertString(userName, 32)).sendAsync().get();
+			
+			// Update cache
+			logger.info("Updating consent cache.");
+			consentCache.put(userName, consentLevels);
 		} catch (Exception e) {
 			throw new EthereumException("No consent registered.", e);
 		}
