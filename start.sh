@@ -41,8 +41,8 @@ function port { echo ${1#*:}; }
     echo done. 
  }
  
- # Delete this for cluster deployment?!
- if [ -n "$LAS2PEER_CONFIG_ENDPOINT" ]; then
+ # Delete this for cluster deployment!
+if [ -n "$LAS2PEER_CONFIG_ENDPOINT" ]; then
     echo Attempting to autoconfigure registry blockchain parameters ...
     if waitForEndpoint $(host ${LAS2PEER_CONFIG_ENDPOINT}) $(port ${LAS2PEER_CONFIG_ENDPOINT}) $CONFIG_ENDPOINT_WAIT; then
         echo "Port is available (but that may just be the Docker daemon)."

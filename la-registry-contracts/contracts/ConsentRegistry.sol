@@ -21,7 +21,6 @@ contract ConsentRegistry {
 
     // If no consent has been stored before, consent is stored for given user
     function storeConsent(bytes32 userId, uint8[] memory consentLevels) public {
-        if (hasStoredConsent(userId)) revert("Cannot overwrite stored consent.");
         _createConsent(Consent(msg.sender, now, userId, consentLevels));
     }
 
@@ -43,7 +42,6 @@ contract ConsentRegistry {
         bytes memory args = abi.encode(userId, consentLevels);
         Delegation.checkConsent(methodId, args, consentee, signature);
 
-        if (hasStoredConsent(userId)) revert("Cannot overwrite stored consent.");
         _createConsent(Consent(consentee, now, userId, consentLevels));
     }
 
