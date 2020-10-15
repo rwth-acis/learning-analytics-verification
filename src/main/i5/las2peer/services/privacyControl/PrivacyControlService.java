@@ -189,7 +189,7 @@ public class PrivacyControlService extends RESTService {
 			UserAgentImpl agent = getAgentFromUserEmail(bodyObj.getAsString("email"));
 			if (agent == null) {
 				JSONObject err = new JSONObject();
-				err.put("text", "Zu deiner Email ist kein las2peer User registriert. Bitte registriere Dich um diesen Service zu nutzen.");
+				err.put("text", "Zu Deiner Email ist kein las2peer User registriert. Bitte registriere Dich um diesen Service zu nutzen.");
 				err.put("closeContext", "true");
 				return Response.ok().entity(err).build();
 			}
@@ -248,6 +248,15 @@ public class PrivacyControlService extends RESTService {
 					JSONObject res = new JSONObject();
 					
 					switch (i) {
+					
+					case 0: // abort
+						
+						logger.info("Abort choosing function to execute...");
+						res = new JSONObject();
+						res.put("text", "Melde Dich, falls ich noch etwas für Dich tun kann.");
+						res.put("closeContext", "true");
+						return Response.ok().entity(res).build();
+						
 					case 1: // consentLevels();
 
 						logger.info("Showing consent options...");
@@ -277,9 +286,9 @@ public class PrivacyControlService extends RESTService {
 
 							String resText = "";
 							if (givenConsent == null || givenConsent.isEmpty()) {
-								resText +=  "Aktuell liegt uns keine Einwilligung zu Deinem User vor.";
+								resText +=  "Aktuell liegt keine Einwilligung zu Deinem User vor.";
 							} else {
-								resText += "Es liegt eine Einwilligung zu folgenden Services/Zugriffsarten vor: \n";
+								resText += "Es liegen folgende Einwilligungen vor: \n";
 								for (BigInteger consent : givenConsent) {
 									resText += consentLevelMap.get(consent.intValue()).toString();
 									resText += "\n";

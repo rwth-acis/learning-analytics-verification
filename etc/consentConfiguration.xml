@@ -1,39 +1,33 @@
 <las2peer:consent>
 	<consentLevel>
-		<name>Keine Einwilligung</name>
-		<level>0</level>
-		<functions>
-			<function></function>
-		</functions>
-		<services>
-			<service></service>
-		</services>
-	</consentLevel>
-	
-	<consentLevel>
-		<name>LMS Daten</name>
+		<name>Basic Moodle Data</name>
 		<level>1</level>
 		<functions>
-			<function>viewed</function>
 			<function>completed</function>
 			<function>received</function>
+			<function>submitted</function>
+			<function>answered</function>
 		</functions>
 		<services>
 			<service>Moodle</service>
-			<service>Onyx</service>
 		</services>
 	</consentLevel>
 	
 	<consentLevel>
-		<name>Weitere LA Daten</name>
+		<name>All Moodle Data</name>
 		<level>2</level>
 		<functions>
-			<function>dummy1</function>
-			<function>dummy2</function>
+			<function>completed</function>
+			<function>received</function>
+			<function>posted</function>
+			<function>replied</function>
+			<function>submitted</function>
+			<function>created</function>
+			<function>answered</function>
+			<function>viewed</function>
 		</functions>
 		<services>
-			<service>Test1</service>
-			<service>Test2</service>
+			<service>Moodle</service>
 		</services>
 	</consentLevel>
 </las2peer:consent>
