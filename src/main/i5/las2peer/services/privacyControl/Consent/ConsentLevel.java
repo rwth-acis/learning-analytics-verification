@@ -2,6 +2,7 @@ package i5.las2peer.services.privacyControl.Consent;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 
 import org.w3c.dom.Element;
@@ -23,6 +24,7 @@ public class ConsentLevel {
 	private List<String> functions;
 	private List<String> services;
 	private LocalDate timestamp;
+	private final String formattedOutput;
 
 	public ConsentLevel(String name, int level, List<String> functions, List<String> services, LocalDate timestamp) {
 		this.name = name;
@@ -30,6 +32,8 @@ public class ConsentLevel {
 		this.functions = functions;
 		this.services = services;
 		this.timestamp = timestamp;
+		
+		formattedOutput = formatStringOutput();
 	}
 
 	public String getName() {
@@ -64,21 +68,38 @@ public class ConsentLevel {
 		this.services = services;
 	}
 	
+	private String formatStringOutput() {
+		String output = "";
+		output += ("[" + getLevel() + "] " + getName() + "\n");
+		output += "Services: ";
+		
+		Iterator<String> iterator = getServices().iterator();
+	    while (iterator.hasNext()) {
+	        String service = iterator.next();
+	        output += service;
+	        if (iterator.hasNext()) {
+	            output += ", ";
+	        }
+	     }
+		
+		output += "\n";
+		output += "Aktionen: ";
+		
+		iterator = getFunctions().iterator();
+	    while (iterator.hasNext()) {
+	        String function = iterator.next();
+	        output += function;
+	        if (iterator.hasNext()) {
+	            output += ", ";
+	        }
+	     }
+		output += "\n";
+		return output;
+	}
+	
 	@Override
 	public String toString() {
-		String result = "";
-		result += ("[" + getLevel() + "] " + getName() + "\n");
-		result += "Services: ";
-		for (String service : getServices()) {
-			result += (service + ", ");
-		}
-		result += "\n";
-		result += "Aktionen: ";
-		for (String func : getFunctions()) {
-			result += (func + ", ");
-		}
-		result += "\n";
-		return result;
+		return formattedOutput;
 	}
 
 	/**
