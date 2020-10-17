@@ -253,7 +253,7 @@ public class PrivacyControlService extends RESTService {
 						
 						logger.info("Abort choosing function to execute...");
 						res = new JSONObject();
-						res.put("text", "Melde Dich, falls ich noch etwas für Dich tun kann.");
+						res.put("text", "Melde Dich, falls ich noch etwas fuer Dich tun kann.");
 						res.put("closeContext", "true");
 						return Response.ok().entity(res).build();
 						
@@ -843,6 +843,36 @@ public class PrivacyControlService extends RESTService {
 			throw new EthereumException(e);
 		}
 		return result.toString();
+	}
+	
+	public boolean verifyDataHash(byte[] hash) throws EthereumException {
+		boolean result = false;
+		try {
+			result = transactionLogRegistry.hasHashBeenRecorded(hash).sendAsync().get();
+		} catch (IllegalArgumentException e) {
+			throw new IllegalArgumentException("An argument was not formatted correctly.", e);
+		} catch (Exception e) {
+			throw new EthereumException(e);
+		}
+		return result;
+	}
+	
+	public boolean verifyXApiStatement(String statement) {		
+		boolean result = false;
+		
+		if (statement.isEmpty()) {
+			return result;
+		}
+		
+		byte[] hash = Util.soliditySha3(statement);
+		
+		try {
+			result = verifyDataHash(hash);
+		} catch (EthereumException e) {
+			e.printStackTrace();
+		}
+		
+		return result;
 	}
 
 	// --------------------------- Utility functions ----------------------------

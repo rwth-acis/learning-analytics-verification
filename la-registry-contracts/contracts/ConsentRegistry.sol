@@ -30,20 +30,20 @@ contract ConsentRegistry {
     }
 
     // Stores consent information on behalf of given user
-    function delegatedStoreConsent(
-        bytes32 userId,
-        uint8[] memory consentLevels,
-        address consentee,
-        bytes memory signature
-    )
-    public {
-        // first 8 chars of keccak("setConsent(bytes32,uint8[])")
-        bytes memory methodId = hex"c73c4234";
-        bytes memory args = abi.encode(userId, consentLevels);
-        Delegation.checkConsent(methodId, args, consentee, signature);
-
-        _createConsent(Consent(consentee, now, userId, consentLevels));
-    }
+//    function delegatedStoreConsent(
+//        bytes32 userId,
+//        uint8[] memory consentLevels,
+//        address consentee,
+//        bytes memory signature
+//    )
+//    public {
+//        // first 8 chars of keccak("setConsent(bytes32,uint8[])")
+//        bytes memory methodId = hex"c73c4234";
+//        bytes memory args = abi.encode(userId, consentLevels);
+//        Delegation.checkConsent(methodId, args, consentee, signature);
+//
+//        _createConsent(Consent(consentee, now, userId, consentLevels));
+//    }
 
     // Returns the consent levels stored for the given user
     function getUserConsentLevels(bytes32 userId) public view returns(uint8[] memory) {

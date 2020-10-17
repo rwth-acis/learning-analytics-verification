@@ -10,6 +10,7 @@ contract TransactionLogRegistry {
     }
 
     mapping(bytes32 => LogEntry[]) userToLogEntries;
+    mapping(bytes32 => uint256) hashesToTimestamps;
 
     function createLogEntry(bytes32 userId, bytes32 source, bytes32 operation, bytes32 dataHash) public {
         _createLogEntry(LogEntry(now, userId, source, operation, dataHash));
@@ -17,6 +18,7 @@ contract TransactionLogRegistry {
 
      function _createLogEntry(LogEntry memory logEntry) private {
          userToLogEntries[logEntry.userId].push(logEntry);
+         hashesToTimestamps[logEntry.dataHash] = logEntry.timestamp;
      }
 
     function getLogEntries(bytes32 userId) public view returns(uint[] memory, bytes32[] memory, bytes32[] memory, bytes32[] memory) {
@@ -39,6 +41,13 @@ contract TransactionLogRegistry {
             hashes[i] = userToLogEntries[userId][i].dataHash;
         }
         return hashes;
+    }
+
+    function hasHashBeenRecorded(bytes32 hash) public view returns (bool) {
+        if (hashesToTimestamps[hash] != 0) {
+            return true;
+        }
+        return false;
     }
 
 }
