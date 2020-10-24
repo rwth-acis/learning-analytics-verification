@@ -1,11 +1,18 @@
 package i5.las2peer.services.privacyControl;
 
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.math.BigInteger;
 import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -50,7 +57,9 @@ import io.swagger.annotations.ApiResponses;
 import io.swagger.annotations.Contact;
 import io.swagger.annotations.Info;
 import io.swagger.annotations.SwaggerDefinition;
+import net.minidev.json.JSONArray;
 import net.minidev.json.JSONObject;
+import net.minidev.json.JSONValue;
 import net.minidev.json.parser.JSONParser;
 import net.minidev.json.parser.ParseException;
 
@@ -77,6 +86,10 @@ public class PrivacyControlService extends RESTService {
 	private final static L2pLogger logger = L2pLogger.getInstance(PrivacyControlService.class.getName());
 
 	private final static String DEFAULT_CONFIG_FILE = "etc/consentConfiguration.xml";
+	
+	private static String lrsDomain;
+	private static String lrsAuth;
+	private static String moodleToken;
 
 	private static EthereumNode node;
 	private static ReadWriteRegistryClient registryClient;
@@ -626,6 +639,23 @@ public class PrivacyControlService extends RESTService {
 		errorMsg.put("closeContext", "true");
 		return Response.ok().entity(errorMsg).build();
 	}
+	
+	@GET
+	@Path("/verifyData")
+	@Produces(MediaType.APPLICATION_JSON)
+	@ApiResponses(
+			value = { @ApiResponse(
+					code = HttpURLConnection.HTTP_OK,
+					message = "Verifed xApi statements.") })
+	public Response verifyData() {
+		logger.info("Data requested...");
+		String resText = checkLRSconnection();
+	
+		JSONObject res = new JSONObject();
+		res.put("text", resText);
+		res.put("closeContext", "true");
+		return Response.ok().entity(res).build();
+	}
 
 	// ------------------------------ Consent handling -----------------------------
 
@@ -843,6 +873,112 @@ public class PrivacyControlService extends RESTService {
 			throw new EthereumException(e);
 		}
 		return result.toString();
+	}
+	
+	// --------------------------- Verification ----------------------------
+	
+	public String checkLRSconnection() {
+		return getStatementsFromLRS("bGVubmFydC5iZW5ndHNvbkByd3RoLWFhY2hlbi5kZQ==");
+	}
+	
+	private String getStatementsFromLRS(String token)  {
+		logger.info("Starting extraction of LRS data...");
+		StringBuffer response = new StringBuffer();
+		String clientKey;
+		String clientSecret;
+		Object clientId = null;
+		try {
+			clientId = searchIfClientExists(token);
+		} catch (IOException e) {
+			e.printStackTrace();
+		} catch (ParseException e) {
+			e.printStackTrace();
+		}
+
+		logger.info("Handled client search...");
+		logger.info("Found client: " + clientId);
+
+		if(!(clientId).equals("noClientExists")) {
+			clientKey = (String) ((JSONObject) clientId).get("basic_key");
+			clientSecret = (String) ((JSONObject) clientId).get("basic_secret");
+			String auth = Base64.getEncoder().encodeToString((clientKey + ":" + clientSecret).getBytes());
+			
+			logger.info("Basic Auth: " + auth);
+
+			try {
+				URL url = new URL(lrsDomain + "/data/xAPI/statements");
+				HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+				conn.setRequestMethod("GET");
+				conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
+				conn.setRequestProperty("X-Experience-API-Version","1.0.3");
+				conn.setRequestProperty("Authorization", "Basic " + auth);
+				conn.setRequestProperty("Cache-Control", "no-cache");
+
+				BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+
+				String inputLine;
+
+				while ((inputLine = in.readLine()) != null) {
+					response.append(inputLine);
+				}
+				in.close();
+				conn.disconnect();
+			} catch (MalformedURLException e) {
+				e.printStackTrace();
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		return response.toString();
+		}
+		else {
+			return String.valueOf(Response.status(500).entity("Client does not exist in LRS").build());
+		}
+	}
+	
+	private Object searchIfClientExists(String token) throws IOException, ParseException {
+		URL url = null;
+		try {
+			try {
+				String clientURL = lrsDomain + "/api/v2/client";
+				url = new URL(clientURL);
+				HttpURLConnection conn = null;
+				conn = (HttpURLConnection) url.openConnection();
+				conn.setDoOutput(true);
+				conn.setDoInput(true);
+				conn.setRequestMethod("GET");
+				conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
+				conn.setRequestProperty("X-Experience-API-Version","1.0.3");
+				conn.setRequestProperty("Authorization", "Basic " + lrsAuth);
+				conn.setRequestProperty("Cache-Control", "no-cache");
+				conn.setUseCaches(false);
+
+				InputStream is = conn.getInputStream();
+				BufferedReader rd = new BufferedReader(new InputStreamReader(is));
+				String line;
+				StringBuilder response = new StringBuilder();
+				while((line = rd.readLine()) != null) {
+					response.append(line);
+				}
+				Object obj= JSONValue.parse(response.toString());
+
+				for(int i = 0 ; i < ((JSONArray ) obj).size(); i ++) {
+					JSONObject client = (JSONObject) ((JSONArray) obj).get(i);
+					if(client.get("title").equals(token)) {
+						return client.get("api");
+					}
+				}
+			}  catch (MalformedURLException e) {
+				e.printStackTrace();
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+
+		} catch(Exception e) {
+			System.out.println(e);
+			return "Error";
+		}
+
+		return "noClientExists";
 	}
 	
 	public boolean verifyDataHash(byte[] hash) throws EthereumException {
