@@ -75,7 +75,7 @@ import net.minidev.json.parser.ParseException;
 		info = @Info(
 				title = "Privacy Control Service",
 				version = "0.1.0",
-				description = "Service for consent management and data access control.",
+				description = "Service for consent management and verification of learning analytics data.",
 				contact = @Contact(
 						name = "Lennart Bengtson",
 						url = "rwth-aachen.de",
@@ -89,7 +89,7 @@ public class PrivacyControlService extends RESTService {
 	
 	private static String lrsDomain;
 	private static String lrsAuth;
-	private static String moodleToken;
+	private static ConcurrentMap<String, String> userToMoodleToken = new ConcurrentHashMap<>();
 
 	private static EthereumNode node;
 	private static ReadWriteRegistryClient registryClient;
@@ -640,19 +640,29 @@ public class PrivacyControlService extends RESTService {
 		return Response.ok().entity(errorMsg).build();
 	}
 	
-	@GET
+	@POST
 	@Path("/verifyData")
 	@Produces(MediaType.APPLICATION_JSON)
 	@ApiResponses(
 			value = { @ApiResponse(
 					code = HttpURLConnection.HTTP_OK,
 					message = "Verifed xApi statements.") })
-	public Response verifyData() {
+	public Response verifyData(String body) {
 		logger.info("Data requested...");
-		String resText = checkLRSconnection();
+		JSONParser parser = new JSONParser(JSONParser.MODE_PERMISSIVE);
+		
+		List<String> statements = new ArrayList<>();
+
+		try {
+			JSONObject bodyObj = (JSONObject) parser.parse(body);
+			statements = getStatementsForUserEmail(bodyObj.getAsString("email"));
+		} catch (ParseException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} 
 	
 		JSONObject res = new JSONObject();
-		res.put("text", resText);
+		res.put("text", statements.toString());
 		res.put("closeContext", "true");
 		return Response.ok().entity(res).build();
 	}
@@ -811,6 +821,11 @@ public class PrivacyControlService extends RESTService {
 				throw new EthereumException(e);
 			}
 		}
+
+		// TODO Change this for production use.
+		// Store token for lookup.
+		String token = statement.split("\\*")[1];
+		userToMoodleToken.put(userEmail, token);
 	}
 
 	public void createLogEntry(String userName, String service, String operation, String dataHash) throws EthereumException {
@@ -877,8 +892,32 @@ public class PrivacyControlService extends RESTService {
 	
 	// --------------------------- Verification ----------------------------
 	
-	public String checkLRSconnection() {
-		return getStatementsFromLRS("bGVubmFydC5iZW5ndHNvbkByd3RoLWFhY2hlbi5kZQ==");
+	private List<String> getStatementsForUserEmail(String userEmail) {
+		String token = userToMoodleToken.get(userEmail);
+		String statementsRaw = getStatementsFromLRS(token);
+		
+		JSONParser parser = new JSONParser(JSONParser.MODE_PERMISSIVE);
+		ArrayList<String> res = new ArrayList<>();
+		
+		try {
+			JSONObject obj = (JSONObject) parser.parse(statementsRaw);
+			JSONArray statements = (JSONArray) obj.get("statements");
+			
+			for (int i = 0; i < statements.size(); i++) {
+				JSONObject statement = (JSONObject) statements.get(i);
+				JSONObject actor = (JSONObject) statement.get("actor");
+				JSONObject acc = (JSONObject) actor.get("account");
+				
+				if (acc.get("name").equals(userEmail)) {
+					res.add(statement.toJSONString());
+				}
+			}
+			
+		} catch (ParseException e) {
+			
+		}
+		
+		return res;
 	}
 	
 	private String getStatementsFromLRS(String token)  {
