@@ -14,7 +14,7 @@ import i5.las2peer.serialization.XmlTools;
  * ConsentLevel
  * 
  * Class that defines object for a certain level of consent.
- * Includes information about the functions (e.g. from a LMS) that are included.
+ * Includes information about the services and actions that are included.
  * 
  */
 public class ConsentLevel {
@@ -32,7 +32,6 @@ public class ConsentLevel {
 		this.functions = functions;
 		this.services = services;
 		this.timestamp = timestamp;
-		
 		formattedOutput = formatStringOutput();
 	}
 
@@ -69,32 +68,36 @@ public class ConsentLevel {
 	}
 	
 	private String formatStringOutput() {
-		String output = "";
-		output += ("[" + getLevel() + "] " + getName() + "\n");
-		output += "Services: ";
+		StringBuilder stringBuilder = new StringBuilder();
+		stringBuilder.append("[");
+		stringBuilder.append(getLevel());
+		stringBuilder.append("] ");
+		stringBuilder.append(getName());
+		stringBuilder.append("\n");
+		stringBuilder.append("Services: ");
 		
 		Iterator<String> iterator = getServices().iterator();
 	    while (iterator.hasNext()) {
 	        String service = iterator.next();
-	        output += service;
+	        stringBuilder.append(service);
 	        if (iterator.hasNext()) {
-	            output += ", ";
+	        	stringBuilder.append(", ");
 	        }
 	     }
 		
-		output += "\n";
-		output += "Aktionen: ";
+	    stringBuilder.append("\n");
+	    stringBuilder.append("Aktionen: ");
 		
 		iterator = getFunctions().iterator();
 	    while (iterator.hasNext()) {
 	        String function = iterator.next();
-	        output += function;
+	        stringBuilder.append(function);
 	        if (iterator.hasNext()) {
-	            output += ", ";
+	        	stringBuilder.append(", ");
 	        }
 	     }
-		output += "\n";
-		return output;
+	    stringBuilder.append("\n");
+		return stringBuilder.toString();
 	}
 	
 	@Override

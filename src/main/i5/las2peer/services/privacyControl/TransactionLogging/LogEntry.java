@@ -58,7 +58,6 @@ public class LogEntry {
 	
 	@Override
 	public String toString() {
-		// TODO Export as JSON (file)?!
 		return getTimestampFormatted() + ": Source: " + getSource() + ", Type: " + getOperation() + "\n" + "Hash: " + getDataHash() + "\n";
 	}
 	
