@@ -28,10 +28,13 @@ import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
+import javax.ws.rs.core.Response.Status;
 
 import org.w3c.dom.Element;
 import org.web3j.tuples.generated.Tuple4;
 
+import i5.las2peer.api.Context;
+import i5.las2peer.api.ManualDeployment;
 import i5.las2peer.api.security.AgentException;
 import i5.las2peer.api.security.AgentNotFoundException;
 import i5.las2peer.api.security.AgentOperationFailedException;
@@ -81,14 +84,15 @@ import net.minidev.json.parser.ParseException;
 						url = "rwth-aachen.de",
 						email = "lennart.bengtson@rwth-aachen.de")))
 @ServicePath("/privacy")
+@ManualDeployment
 public class PrivacyControlService extends RESTService {
 
 	private final static L2pLogger logger = L2pLogger.getInstance(PrivacyControlService.class.getName());
 
 	private final static String DEFAULT_CONFIG_FILE = "etc/consentConfiguration.xml";
 
-	private static String lrsDomain;
-	private static String lrsAuth;
+	private String lrsDomain;
+	private String lrsAuth;
 	private static ConcurrentMap<String, String> userToMoodleToken = new ConcurrentHashMap<>();
 
 	private static EthereumNode node;
@@ -111,30 +115,20 @@ public class PrivacyControlService extends RESTService {
 	// ------------------------------ Initialization -----------------------------
 
 	public PrivacyControlService() {
-		super();
-
-		// Workaround, to avoid reloading the contracts.
-		if (!initialized) {
-			// Wait for service to be started before executing the initialization
-			// Seems to be necessary because node (the service is running at) would not be known otherwise
-			new java.util.Timer().schedule( 
-					new java.util.TimerTask() {
-						@Override
-						public void run() {
-							init();
-						}
-					}, 
-					10000 
-					);
-		}
+		setFieldValues();
 	}
 
-	/**
-	 * Initializes the privacy control service instance.
-	 * Reads information about available consent levels from XML configuration file.
-	 * Loads/Deploys necessary smart contracts.
-	 */
-	public void init() {
+	@POST
+	@Path("/init")
+	@Produces(MediaType.TEXT_PLAIN)
+	@ApiResponses(
+			value = { @ApiResponse(
+					code = HttpURLConnection.HTTP_OK,
+					message = "Privacy control service initialized") })
+	public Response init() {
+		if (initialized) {
+			return Response.status(Status.BAD_REQUEST).entity("Already initialized").build();
+		}
 		logger.info("Initializing privacy control service...");
 		// Read consent levels from configuration file.
 		try {
@@ -148,6 +142,7 @@ public class PrivacyControlService extends RESTService {
 		} catch (Exception e) {
 			logger.warning("Unable to read from XML. Please make sure file exists and is correctly formatted.");
 			e.printStackTrace();
+			return Response.status(Status.BAD_REQUEST).entity("Unable to read consent configuration").build();
 		}
 		logger.info("Successfully read from XML consent configuration file.");
 
@@ -162,7 +157,7 @@ public class PrivacyControlService extends RESTService {
 
 		// Deploy smart contracts from wrapper classes
 		try {
-			ServiceAgentImpl agent = (ServiceAgentImpl) this.getAgent();
+			ServiceAgentImpl agent = (ServiceAgentImpl) Context.getCurrent().getServiceAgent();
 			node = (EthereumNode) agent.getRunningAtNode();
 			registryClient = node.getRegistryClient();
 
@@ -172,9 +167,9 @@ public class PrivacyControlService extends RESTService {
 		} catch (Exception e) {
 			logger.warning("Initilization of smart contracts failed!");
 			e.printStackTrace();
+			return Response.status(Status.BAD_REQUEST).entity("Initilization of smart contracts failed!").build();
 		}
-
-		logger.info("Done. Proceeding");
+		return Response.status(Status.OK).entity("Initialization successful.").build();
 	}
 
 	// ------------------------------ Bot communication ----------------------------
