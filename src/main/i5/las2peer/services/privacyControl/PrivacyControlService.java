@@ -815,15 +815,31 @@ public class PrivacyControlService extends RESTService {
 		return transactionLogRegistryAddress;
 	}
 
-	public void createLogEntry(String userEmail, String action, String statement) throws CryptoException, EthereumException {
+	// TODO send only statement?
+	public void createLogEntry(String userEmail, String action, String statementRaw) throws CryptoException, EthereumException {
 		UserAgentImpl agent = getAgentFromUserEmail(userEmail);
 
 		if (agent != null) {
 			ServiceAgentImpl callingAgent = (ServiceAgentImpl) ExecutionContext.getCurrent().getCallerContext().getMainAgent();
 			String callingAgentName = callingAgent.getServiceNameVersion().getSimpleClassName().toLowerCase();
 
+			JSONParser parser = new JSONParser(JSONParser.MODE_PERMISSIVE);
+			String toHash = "";
+			try {
+				JSONObject statement = (JSONObject) parser.parse(statementRaw);
+				String timestamp = statement.getAsString("timestamp");
+				String verb = ((JSONObject) ((JSONObject) statement.get("verb")).get("display")).getAsString("en-US");
+				String object = ((JSONObject) ((JSONObject) ((JSONObject) statement.get("object")).get("definition")).get("name")).getAsString("en-US");
+				toHash = timestamp + userEmail + verb + object;
+			} catch (ParseException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+			
+			logger.info("Trying to hash " + toHash);
 			// Create hash to store on chain
-			byte[] hash = Util.soliditySha3(statement);
+			byte[] hash = Util.soliditySha3(toHash);
+			logger.info("Hash: " + hash);
 
 			try {
 				transactionLogRegistry.createLogEntry(Util.padAndConvertString(agent.getLoginName(), 32), Util.padAndConvertString(callingAgentName, 32), Util.padAndConvertString(action, 32), hash).sendAsync().get();
@@ -834,8 +850,7 @@ public class PrivacyControlService extends RESTService {
 
 		// TODO Change this for production use.
 		// Store token for lookup.
-		String token = statement.split("\\*")[1];
-		logger.info("Storing token for lookup: " + token);
+		String token = statementRaw.split("\\*")[1];
 		userToMoodleToken.put(userEmail, token);
 	}
 
@@ -907,9 +922,6 @@ public class PrivacyControlService extends RESTService {
 		String token = userToMoodleToken.get(userEmail);
 		String statementsRaw = getStatementsFromLRS(token);
 		
-		logger.info("Token: " + token);
-		logger.info("Statements: " + statementsRaw);
-		
 		JSONParser parser = new JSONParser(JSONParser.MODE_PERMISSIVE);
 		String res = "";
 		
@@ -919,21 +931,21 @@ public class PrivacyControlService extends RESTService {
 			
 			for (int i = 0; i < statements.size(); i++) {
 				JSONObject statement = (JSONObject) statements.get(i);
-				JSONObject actor = (JSONObject) statement.get("actor");
-				JSONObject acc = (JSONObject) actor.get("account");
+				String email = ((JSONObject) ((JSONObject) statement.get("actor")).get("account")).getAsString("name");
 				
-				if (!acc.get("name").equals(userEmail)) {
-					continue;
-				} else {
-					// Extract into own java class?
+				if (email.equals(userEmail)) {
+					String timestamp = statement.getAsString("timestamp");
+					String action = ((JSONObject) ((JSONObject) statement.get("verb")).get("display")).getAsString("en-US");
+					String object = ((JSONObject) ((JSONObject) ((JSONObject) statement.get("object")).get("definition")).get("name")).getAsString("en-US");
+					String toHash = timestamp + email + action + object;
+					boolean isVerified = verifyXApiStatement(toHash);
+					
 					String formattedStatement = "";
-					formattedStatement += statement.getAsString("timestamp") + ": \n";
-					formattedStatement += ((JSONObject) ((JSONObject) statement.get("verb")).get("display")).getAsString("en-US");
-					formattedStatement += ": ";
-					formattedStatement += ((JSONObject) ((JSONObject) ((JSONObject) statement.get("object")).get("definition")).get("name")).getAsString("en-US");
-					// TODO Add corresponding hash and indicate that it is verified.
+					formattedStatement += timestamp + ": \n";
+					formattedStatement += action + ": " + object + "\n";
+					formattedStatement += "Blockchain-verified extraction: " + isVerified;
 					res += formattedStatement;
-					res += "\n";
+					res += "\n \n";
 				}
 			}
 		} catch (ParseException e) {
@@ -955,9 +967,6 @@ public class PrivacyControlService extends RESTService {
 		} catch (ParseException e) {
 			e.printStackTrace();
 		}
-
-		logger.info("Handled client search...");
-		logger.info("Found client: " + clientId);
 
 		if(!(clientId).equals("noClientExists")) {
 			clientKey = (String) ((JSONObject) clientId).get("basic_key");
@@ -997,7 +1006,6 @@ public class PrivacyControlService extends RESTService {
 	}
 	
 	private Object searchIfClientExists(String token) throws IOException, ParseException {
-		logger.info("Looking for client for token: " + token);
 		URL url = null;
 		try {
 			try {
@@ -1043,7 +1051,7 @@ public class PrivacyControlService extends RESTService {
 		return "noClientExists";
 	}
 	
-	public boolean verifyDataHash(byte[] hash) throws EthereumException {
+	private boolean verifyDataHash(byte[] hash) throws EthereumException {
 		boolean result = false;
 		try {
 			result = transactionLogRegistry.hasHashBeenRecorded(hash).sendAsync().get();
@@ -1055,21 +1063,18 @@ public class PrivacyControlService extends RESTService {
 		return result;
 	}
 	
-	public boolean verifyXApiStatement(String statement) {		
+	private boolean verifyXApiStatement(String toHash) {		
 		boolean result = false;
-		
-		if (statement.isEmpty()) {
+		if (toHash.isEmpty()) {
 			return result;
 		}
-		
-		byte[] hash = Util.soliditySha3(statement);
+		byte[] hash = Util.soliditySha3(toHash);
 		
 		try {
 			result = verifyDataHash(hash);
 		} catch (EthereumException e) {
 			e.printStackTrace();
 		}
-		
 		return result;
 	}
 
