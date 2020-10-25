@@ -198,8 +198,9 @@ public class PrivacyControlService extends RESTService {
 		try {
 			JSONObject bodyObj = (JSONObject) parser.parse(body);
 			channel = bodyObj.getAsString("channel");
-
-			UserAgentImpl agent = getAgentFromUserEmail(bodyObj.getAsString("email"));
+			
+			String email = bodyObj.getAsString("email");
+			UserAgentImpl agent = getAgentFromUserEmail(email);
 			if (agent == null) {
 				JSONObject err = new JSONObject();
 				err.put("text", "Zu Deiner Email ist kein las2peer User registriert. Bitte registriere Dich um diesen Service zu nutzen.");
@@ -350,6 +351,15 @@ public class PrivacyControlService extends RESTService {
 						} catch (EthereumException e) {
 							e.printStackTrace();
 						}
+					
+					case 6: // verifyData(body)
+						logger.info("LRS Data requested for user " + agent.getLoginName());
+						String resText = getStatementsForUserEmail(email);
+					
+						JSONObject responseBody = new JSONObject();
+						responseBody.put("text", resText);
+						responseBody.put("closeContext", "true");
+						return Response.ok().entity(responseBody).build();
 
 					default:
 						break;
@@ -371,6 +381,7 @@ public class PrivacyControlService extends RESTService {
 								+ "[3] Deine Einwilligung zur Datenverarbeitung anzeigen. \n"
 								+ "[4] Deine Einwilligung zur Datenverarbeitung widerrufen. \n"
 								+ "[5] Geloggte Zugriffe auf deine persoenlichen Daten anzeigen. \n"
+								+ "[6] Daten aus LRS anzeigen. \n"
 								+ "[0] Abbrechen. \n \n"
 								+ "Gib eine Nummer ein, um die jeweilige Funktionalitaet zu nutzen.";
 
@@ -650,19 +661,18 @@ public class PrivacyControlService extends RESTService {
 	public Response verifyData(String body) {
 		logger.info("Data requested...");
 		JSONParser parser = new JSONParser(JSONParser.MODE_PERMISSIVE);
-		
-		List<String> statements = new ArrayList<>();
+		String resText = "";
 
 		try {
 			JSONObject bodyObj = (JSONObject) parser.parse(body);
-			statements = getStatementsForUserEmail(bodyObj.getAsString("email"));
+			resText += getStatementsForUserEmail(bodyObj.getAsString("email"));
 		} catch (ParseException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		} 
 	
 		JSONObject res = new JSONObject();
-		res.put("text", statements.toString());
+		res.put("text", resText);
 		res.put("closeContext", "true");
 		return Response.ok().entity(res).build();
 	}
@@ -825,6 +835,7 @@ public class PrivacyControlService extends RESTService {
 		// TODO Change this for production use.
 		// Store token for lookup.
 		String token = statement.split("\\*")[1];
+		logger.info("Storing token for lookup: " + token);
 		userToMoodleToken.put(userEmail, token);
 	}
 
@@ -892,12 +903,15 @@ public class PrivacyControlService extends RESTService {
 	
 	// --------------------------- Verification ----------------------------
 	
-	private List<String> getStatementsForUserEmail(String userEmail) {
+	private String getStatementsForUserEmail(String userEmail) {
 		String token = userToMoodleToken.get(userEmail);
 		String statementsRaw = getStatementsFromLRS(token);
 		
+		logger.info("Token: " + token);
+		logger.info("Statements: " + statementsRaw);
+		
 		JSONParser parser = new JSONParser(JSONParser.MODE_PERMISSIVE);
-		ArrayList<String> res = new ArrayList<>();
+		String res = "";
 		
 		try {
 			JSONObject obj = (JSONObject) parser.parse(statementsRaw);
@@ -908,15 +922,23 @@ public class PrivacyControlService extends RESTService {
 				JSONObject actor = (JSONObject) statement.get("actor");
 				JSONObject acc = (JSONObject) actor.get("account");
 				
-				if (acc.get("name").equals(userEmail)) {
-					res.add(statement.toJSONString());
+				if (!acc.get("name").equals(userEmail)) {
+					continue;
+				} else {
+					// Extract into own java class?
+					String formattedStatement = "";
+					formattedStatement += statement.getAsString("timestamp") + ": \n";
+					formattedStatement += ((JSONObject) ((JSONObject) statement.get("verb")).get("display")).getAsString("en-US");
+					formattedStatement += ": ";
+					formattedStatement += ((JSONObject) ((JSONObject) ((JSONObject) statement.get("object")).get("definition")).get("name")).getAsString("en-US");
+					// TODO Add corresponding hash and indicate that it is verified.
+					res += formattedStatement;
+					res += "\n";
 				}
 			}
-			
 		} catch (ParseException e) {
-			
+			e.printStackTrace();
 		}
-		
 		return res;
 	}
 	
@@ -975,6 +997,7 @@ public class PrivacyControlService extends RESTService {
 	}
 	
 	private Object searchIfClientExists(String token) throws IOException, ParseException {
+		logger.info("Looking for client for token: " + token);
 		URL url = null;
 		try {
 			try {
