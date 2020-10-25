@@ -86,7 +86,7 @@ public class PrivacyControlService extends RESTService {
 	private final static L2pLogger logger = L2pLogger.getInstance(PrivacyControlService.class.getName());
 
 	private final static String DEFAULT_CONFIG_FILE = "etc/consentConfiguration.xml";
-	
+
 	private static String lrsDomain;
 	private static String lrsAuth;
 	private static ConcurrentMap<String, String> userToMoodleToken = new ConcurrentHashMap<>();
@@ -195,7 +195,7 @@ public class PrivacyControlService extends RESTService {
 			JSONObject bodyObj = (JSONObject) parser.parse(body);
 			channel = bodyObj.getAsString("channel");
 			String email = bodyObj.getAsString("email");
-			
+
 			UserAgentImpl agent = getAgentFromUserEmail(email);
 			if (agent == null) {
 				JSONObject err = new JSONObject();
@@ -253,7 +253,7 @@ public class PrivacyControlService extends RESTService {
 					int i = Integer.valueOf(chosenOption);
 					choosingFunction.remove(channel);
 					JSONObject res = new JSONObject();
-					
+
 					switch (i) {
 					case 0: // abort
 						logger.info("Abort choosing function to execute...");
@@ -261,7 +261,7 @@ public class PrivacyControlService extends RESTService {
 						res.put("text", "Melde Dich, falls ich noch etwas fuer Dich tun kann.");
 						res.put("closeContext", "true");
 						return Response.ok().entity(res).build();
-						
+
 					case 1: // consentLevels();
 						logger.info("Showing consent options...");
 						String consentLevelString = getConsentLevelsFormatted();
@@ -270,7 +270,7 @@ public class PrivacyControlService extends RESTService {
 						res.put("text", "" + consentLevelString);
 						res.put("closeContext", "true");
 						return Response.ok().entity(res).build();
-						
+
 					case 2: // storeConsent(body);
 						logger.info("Starting consent storage for user " + agent.getLoginName());
 						consentProcessing.add(channel);
@@ -304,7 +304,7 @@ public class PrivacyControlService extends RESTService {
 							e.printStackTrace();
 						}
 						break;
-						
+
 					case 4: // revokeConsent(body);
 						logger.info("Revoking consent for user " + agent.getLoginName());
 						try {
@@ -332,11 +332,11 @@ public class PrivacyControlService extends RESTService {
 							e.printStackTrace();
 						}
 						break;
-					
+
 					case 6: // verifyData(body)
 						logger.info("LRS Data requested for user " + agent.getLoginName());
 						String resText = getStatementsForUserEmail(email);
-					
+
 						res = new JSONObject();
 						res.put("text", resText);
 						res.put("closeContext", "true");
@@ -360,7 +360,7 @@ public class PrivacyControlService extends RESTService {
 								+ "[2] Einwilligung zur Datenverarbeitung abgeben. \n"
 								+ "[3] Einwilligung zur Datenverarbeitung anzeigen. \n"
 								+ "[4] Einwilligung zur Datenverarbeitung widerrufen. \n"
-								+ "[5] Geloggte Zugriffe auf persoenlichen Daten anzeigen. \n"
+								+ "[5] Geloggte Zugriffe auf persoenliche Daten anzeigen. \n"
 								+ "[6] Gespeicherte Daten aus Learning Record Store anzeigen. \n"
 								+ "[0] Abbrechen. \n \n"
 								+ "Gib eine Nummer ein, um die jeweilige Funktionalitaet zu nutzen.";
@@ -627,7 +627,7 @@ public class PrivacyControlService extends RESTService {
 		errorMsg.put("closeContext", "true");
 		return Response.ok().entity(errorMsg).build();
 	}
-	
+
 	@POST
 	@Path("/verifyData")
 	@Produces(MediaType.APPLICATION_JSON)
@@ -647,7 +647,7 @@ public class PrivacyControlService extends RESTService {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		} 
-	
+
 		JSONObject res = new JSONObject();
 		res.put("text", resText);
 		res.put("closeContext", "true");
@@ -698,10 +698,7 @@ public class PrivacyControlService extends RESTService {
 					}
 				}
 			}
-
-			// TODO Remove?
-			// Log failed extraction attempt.
-			createLogEntry(agent.getLoginName(), callingAgentName, action, "");
+			// TODO Create log entries for failed extraction attempts?
 		}
 		return false;
 	}
@@ -784,35 +781,40 @@ public class PrivacyControlService extends RESTService {
 		return transactionLogRegistryAddress;
 	}
 
-	// TODO send only statement?
-	public void createLogEntry(String statementRaw) throws CryptoException, EthereumException {
+	/**
+	 * Creates log and hash based on the given xAPIstatement and stores information on the Ethereum blockchain.
+	 * 
+	 * @param xApiStatement for which to create the log entry.
+	 * @throws CryptoException
+	 * @throws EthereumException
+	 */
+	public void createLogEntry(String xApiStatement) throws CryptoException, EthereumException {
 		JSONParser parser = new JSONParser(JSONParser.MODE_PERMISSIVE);
 		JSONObject statement = new JSONObject();
 		try {
-			statement = (JSONObject) parser.parse(statementRaw);
+			statement = (JSONObject) parser.parse(xApiStatement);
 		} catch (ParseException e) {
 			throw new EthereumException(e);
 		}
 		String email = ((JSONObject) ((JSONObject) statement.get("actor")).get("account")).getAsString("name");
-		
+
 		UserAgentImpl agent = getAgentFromUserEmail(email);
 		if (agent != null) {
 			ServiceAgentImpl callingAgent = (ServiceAgentImpl) ExecutionContext.getCurrent().getCallerContext().getMainAgent();
 			String callingAgentName = callingAgent.getServiceNameVersion().getSimpleClassName().toLowerCase();
 
-			StringBuilder stringBuilder = new StringBuilder();
 			String timestamp = statement.getAsString("timestamp");
 			String verb = ((JSONObject) ((JSONObject) statement.get("verb")).get("display")).getAsString("en-US");
 			String object = ((JSONObject) ((JSONObject) ((JSONObject) statement.get("object")).get("definition")).get("name")).getAsString("en-US");
+
+			StringBuilder stringBuilder = new StringBuilder();
 			stringBuilder.append(timestamp);
 			stringBuilder.append(email);
 			stringBuilder.append(verb);
 			stringBuilder.append(object);
 
-			logger.info("Trying to hash " + stringBuilder.toString());
 			// Create hash to store on chain
 			byte[] hash = Util.soliditySha3(stringBuilder.toString());
-			logger.info("Hash: " + hash);
 
 			try {
 				transactionLogRegistry.createLogEntry(Util.padAndConvertString(agent.getLoginName(), 32), Util.padAndConvertString(callingAgentName, 32), Util.padAndConvertString(verb, 32), hash).sendAsync().get();
@@ -823,25 +825,14 @@ public class PrivacyControlService extends RESTService {
 
 		// TODO Change this for production use.
 		// Store token for lookup.
-		String token = statementRaw.split("\\*")[1];
+		String token = xApiStatement.split("\\*")[1];
 		userToMoodleToken.put(email, token);
-	}
-
-	// TODO Potentially remove
-	public void createLogEntry(String userName, String service, String operation, String dataHash) throws EthereumException {
-		try {
-			transactionLogRegistry.createLogEntry(Util.padAndConvertString(userName, 32), Util.padAndConvertString(service, 32), Util.padAndConvertString(operation, 32), Util.padAndConvertString(dataHash, 32)).sendAsync().get();
-		} catch (IllegalArgumentException e) {
-			throw new IllegalArgumentException("An argument was not formatted correctly.", e);
-		} catch (Exception e) {
-			throw new EthereumException(e);
-		}
 	}
 
 	@SuppressWarnings("deprecation")
 	public String getLogEntries(String userName) throws EthereumException {
 		Tuple4<List<BigInteger>, List<byte[]>, List<byte[]>, List<byte[]>> initialResult;
-		String result = "";
+		StringBuilder resBuilder = new StringBuilder();
 		try {
 			initialResult = transactionLogRegistry.getLogEntries(Util.padAndConvertString(userName, 32)).send();
 
@@ -861,20 +852,18 @@ public class PrivacyControlService extends RESTService {
 			}
 
 			if (logs.isEmpty()) {
-				result += "Derzeit liegen keine geloggten Datenzugriffe zu deinem Account vor.";
+				resBuilder.append("Derzeit liegen keine geloggten Datenzugriffe zu deinem Account vor.");
 			} else {
-				result += "Es wurden folgende Datenzugriffe geloggt: \n\n";
+				resBuilder.append("Es wurden folgende Datenzugriffe geloggt: \n\n");
 				for (LogEntry l : logs) {
-					result += l.toString();
+					resBuilder.append(l.toString());
 				}				
 			}
-
-			logger.warning("Printing " + logs.size() + " entries: \n" + result);
 		} catch (Exception e) {
 			e.printStackTrace();
 			throw new EthereumException(e);
 		}
-		return result;
+		return resBuilder.toString();
 	}
 
 	@SuppressWarnings("unchecked")
@@ -889,45 +878,67 @@ public class PrivacyControlService extends RESTService {
 		}
 		return result.toString();
 	}
-	
+
 	// --------------------------- Verification ----------------------------
-	
+
+	/**
+	 * Queries all xAPIstatements from the LRS and filters relevant statements based on the given userEmail.
+	 * Statements are verified with the logs on the Ethereum blockchain, formatted and returned.
+	 * 
+	 * @param User (represented by email) to revoke consent for.
+	 * @return formatted xAPIstatements from LRS for the given user
+	 */
 	private String getStatementsForUserEmail(String userEmail) {
 		String token = userToMoodleToken.get(userEmail);
 		String statementsRaw = getStatementsFromLRS(token);
-		
+
 		JSONParser parser = new JSONParser(JSONParser.MODE_PERMISSIVE);
-		String res = "";
-		
+		StringBuilder resBuilder = new StringBuilder();
+
 		try {
 			JSONObject obj = (JSONObject) parser.parse(statementsRaw);
 			JSONArray statements = (JSONArray) obj.get("statements");
-			
+
 			for (int i = 0; i < statements.size(); i++) {
 				JSONObject statement = (JSONObject) statements.get(i);
 				String email = ((JSONObject) ((JSONObject) statement.get("actor")).get("account")).getAsString("name");
-				
+
 				if (email.equals(userEmail)) {
 					String timestamp = statement.getAsString("timestamp");
 					String action = ((JSONObject) ((JSONObject) statement.get("verb")).get("display")).getAsString("en-US");
 					String object = ((JSONObject) ((JSONObject) ((JSONObject) statement.get("object")).get("definition")).get("name")).getAsString("en-US");
 					String toHash = timestamp + email + action + object;
 					boolean isVerified = verifyXApiStatement(toHash);
-					
-					String formattedStatement = "";
-					formattedStatement += timestamp + ": \n";
-					formattedStatement += action + ": " + object + "\n";
-					formattedStatement += "Blockchain-verified extraction: " + isVerified;
-					res += formattedStatement;
-					res += "\n \n";
+
+					StringBuilder stringBuilder = new StringBuilder();
+					stringBuilder.append(timestamp);
+					stringBuilder.append("\n");
+					stringBuilder.append(action);
+					stringBuilder.append(": ");
+					stringBuilder.append(object);
+					stringBuilder.append("\n");
+					if (isVerified) {
+						stringBuilder.append("Blockchain-verified extraction \n");				
+					}
+
+					resBuilder.append(stringBuilder.toString());
+					resBuilder.append("\n");
 				}
 			}
 		} catch (ParseException e) {
 			e.printStackTrace();
+		} catch (EthereumException e) {
+			e.printStackTrace();
 		}
-		return res;
+		return resBuilder.toString();
 	}
-	
+
+	/**
+	 * Gets all xAPI statements for the given clientID (moodleToken).
+	 * 
+	 * @param Token to identify the relevant client
+	 * @return xAPIstatements in JSON String
+	 */
 	private String getStatementsFromLRS(String token)  {
 		logger.info("Starting extraction of LRS data...");
 		StringBuffer response = new StringBuffer();
@@ -946,8 +957,6 @@ public class PrivacyControlService extends RESTService {
 			clientKey = (String) ((JSONObject) clientId).get("basic_key");
 			clientSecret = (String) ((JSONObject) clientId).get("basic_secret");
 			String auth = Base64.getEncoder().encodeToString((clientKey + ":" + clientSecret).getBytes());
-			
-			logger.info("Basic Auth: " + auth);
 
 			try {
 				URL url = new URL(lrsDomain + "/data/xAPI/statements");
@@ -972,13 +981,20 @@ public class PrivacyControlService extends RESTService {
 			} catch (IOException e) {
 				e.printStackTrace();
 			}
-		return response.toString();
-		}
-		else {
+			return response.toString();
+		} else {
 			return String.valueOf(Response.status(500).entity("Client does not exist in LRS").build());
 		}
 	}
-	
+
+	/**
+	 * Gets the corresponding LRS-client-object for a given ClientID (in this case a moodleToken).
+	 * 
+	 * @param Token to identify the relevant client
+	 * @return LRS-Client
+	 * @throws IOException
+	 * @throws ParseException
+	 */
 	private Object searchIfClientExists(String token) throws IOException, ParseException {
 		URL url = null;
 		try {
@@ -1016,17 +1032,27 @@ public class PrivacyControlService extends RESTService {
 			} catch (IOException e) {
 				e.printStackTrace();
 			}
-
 		} catch(Exception e) {
 			System.out.println(e);
 			return "Error";
 		}
-
 		return "noClientExists";
 	}
-	
-	private boolean verifyDataHash(byte[] hash) throws EthereumException {
+
+	/**
+	 * Checks for a given content string if a corresponding hash/logentry exists on the Ethereum blockchain.
+	 * 
+	 * @param content to verify with the Ethereum blockchain.
+	 * @return true if hash exists, false otherwise
+	 * @throws EthereumException
+	 */
+	private boolean verifyXApiStatement(String toHash) throws EthereumException {		
 		boolean result = false;
+		if (toHash.isEmpty()) {
+			return result;
+		}
+		byte[] hash = Util.soliditySha3(toHash);
+
 		try {
 			result = transactionLogRegistry.hasHashBeenRecorded(hash).sendAsync().get();
 		} catch (IllegalArgumentException e) {
@@ -1036,25 +1062,10 @@ public class PrivacyControlService extends RESTService {
 		}
 		return result;
 	}
-	
-	private boolean verifyXApiStatement(String toHash) {		
-		boolean result = false;
-		if (toHash.isEmpty()) {
-			return result;
-		}
-		byte[] hash = Util.soliditySha3(toHash);
-		
-		try {
-			result = verifyDataHash(hash);
-		} catch (EthereumException e) {
-			e.printStackTrace();
-		}
-		return result;
-	}
 
-	// --------------------------- Utility functions ----------------------------
+	// --------------------------- Utility  ----------------------------
 
-	public UserAgentImpl getAgentFromUserEmail(String userEmail) {
+	private UserAgentImpl getAgentFromUserEmail(String userEmail) {
 		if (userEmail == null || userEmail.isEmpty()) {
 			return null;
 		}
@@ -1077,14 +1088,14 @@ public class PrivacyControlService extends RESTService {
 	}
 
 	private String getConsentLevelsFormatted() {
-		String consentLevelString = "";
+		StringBuilder stringBuilder = new StringBuilder();
 		Set<Integer> consentLevels = consentLevelMap.keySet();
 
 		for (Integer i : consentLevels) {
 			ConsentLevel cl = consentLevelMap.get(i);
-			consentLevelString += cl.toString();
-			consentLevelString += "\n";
+			stringBuilder.append(cl.toString());
+			stringBuilder.append("\n");
 		}
-		return consentLevelString;
+		return stringBuilder.toString();
 	}
 }
