@@ -11,6 +11,9 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.FormatStyle;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashMap;
@@ -181,7 +184,7 @@ public class PrivacyControlService extends RESTService {
 	@ApiResponses(
 			value = { @ApiResponse(
 					code = HttpURLConnection.HTTP_OK,
-					message = "Returned greeting.") })
+					message = "Returned menu.") })
 	public Response showGreeting(String body) throws ParseException {
 		JSONParser parser = new JSONParser(JSONParser.MODE_PERMISSIVE);
 		String channel = "";
@@ -210,7 +213,7 @@ public class PrivacyControlService extends RESTService {
 					List<BigInteger> levels = new ArrayList<BigInteger>();
 					for (String s : chosenConsentLevels.split("\\,")) {
 						if (!consentLevelMap.containsKey(Integer.valueOf(s))) {
-							throw new NumberFormatException();
+							throw new NumberFormatException(s);
 						}
 						levels.add(new BigInteger(s));
 					}
@@ -219,26 +222,20 @@ public class PrivacyControlService extends RESTService {
 
 					// Build response and close context.
 					JSONObject res = new JSONObject();
-					res.put("text", "Einwilligung erfolgreich gespeichert.");
+					res.put("text", "Deine Einwilligung wurde erfolgreich gespeichert. \n Melde Dich, falls ich noch etwas fuer Dich tun kann.");
 					res.put("closeContext", "true");
 					return Response.ok().entity(res).build();
 
 				} catch (NumberFormatException e) {
 					// Build error but don't close context when ID is not valid.
 					JSONObject err = new JSONObject();
-					err.put("text", "Bitte gib eine oder mehrere gueltige Ids ein.");
+					err.put("text", "Bitte gib eine oder mehrere gueltige Nummern ein.");
 					err.put("closeContext", "false");
 					return Response.ok().entity(err).build();
 				} catch (EthereumException e) {
 					e.printStackTrace();
 				}
 				consentProcessing.remove(channel);
-
-				// Can only be reached in case of an error
-				JSONObject err = new JSONObject();
-				err.put("text", "Etwas ist bei der Anfrage schiefgegangen.");
-				err.put("closeContext", "true");
-				return Response.ok().entity(err).build();	
 			}
 
 			if (choosingFunction.contains(channel)) {
@@ -271,8 +268,16 @@ public class PrivacyControlService extends RESTService {
 						consentProcessing.add(channel);
 						String consentLevels = getConsentLevelsFormatted();
 
+						StringBuilder storageStringBuilder = new StringBuilder();
+						storageStringBuilder.append("Hier kannst Du festlegen, welche Deiner Daten aus welchen System gesammelt und analysiert werden duerfen. \n");
+						storageStringBuilder.append("Service bezeichnet das System in dem die Daten erfasst werden (z.B. Moodle). \n");
+						storageStringBuilder.append("Aktionen bestimmt die Art der Daten (z.B. 'completed' fuer ein abgeschlossenes Quiz oder 'posted' fuer einen verfassten Forumseintrag). \n");
+						storageStringBuilder.append("Dazu hast du folgende Optionen: \n");
+						storageStringBuilder.append(consentLevels);
+						storageStringBuilder.append("Bitte gib die Nummern der Optionen an, mit denen Du einverstanden bist (bei mehreren: '1,2')");
+						
 						res = new JSONObject();
-						res.put("text", "Bitte gib die Ids (z.B. 1,2) der Datenverarbeitungsoptionen an, mit denen Du einverstanden bist. \n" + consentLevels);
+						res.put("text", storageStringBuilder.toString());
 						res.put("closeContext", "false");
 						return Response.ok().entity(res).build();
 
@@ -282,14 +287,16 @@ public class PrivacyControlService extends RESTService {
 							givenConsent = getConsentLevelsForLoginName(agent.getLoginName());
 							StringBuilder stringBuilder = new StringBuilder();
 							if (givenConsent == null || givenConsent.isEmpty()) {
-								stringBuilder.append("Aktuell liegt keine Einwilligung zu Deinem User vor.");
+								stringBuilder.append("Aktuell liegt keine Einwilligung von Dir vor.");
 							} else {
-								stringBuilder.append("Es liegen folgende Einwilligungen vor: \n");
+								stringBuilder.append("Du hast Deine Einwilligungen zu folgenden Optionen gegeben: \n");
 								for (BigInteger consent : givenConsent) {
 									stringBuilder.append(consentLevelMap.get(consent.intValue()).toString());
 									stringBuilder.append("\n");
 								}
 							}
+							
+							stringBuilder.append("\n Melde Dich, falls ich noch etwas fuer Dich tun kann.");
 
 							res = new JSONObject();
 							res.put("text", stringBuilder.toString());
@@ -306,7 +313,7 @@ public class PrivacyControlService extends RESTService {
 							revokeUserConsent(agent.getLoginName());
 
 							res = new JSONObject();
-							res.put("text", "Deine Einstellungen wurden angepasst.");
+							res.put("text", "Deine Einstellungen wurden angepasst. \n Melde Dich, falls ich noch etwas fuer Dich tun kann.");
 							res.put("closeContext", "true");
 							return Response.ok().entity(res).build();
 						} catch (EthereumException e) {
@@ -314,26 +321,12 @@ public class PrivacyControlService extends RESTService {
 						}
 						break;
 
-					case 5: // showLogEntries(body);
-						logger.info("Requesting logs for user " + agent.getLoginName());
-						try {
-							String resText = "" + getLogEntries(agent.getLoginName()).toString();
-
-							res = new JSONObject();
-							res.put("text", resText);
-							res.put("closeContext", "true");
-							return Response.ok().entity(res).build();
-						} catch (EthereumException e) {
-							e.printStackTrace();
-						}
-						break;
-
-					case 6: // verifyData(body)
+					case 5: // verifyData(body)
 						logger.info("LRS Data requested for user " + agent.getLoginName());
 						String resText = getStatementsForUserEmail(email);
 
 						res = new JSONObject();
-						res.put("text", resText);
+						res.put("text", resText + "\n Melde Dich, falls ich noch etwas fuer Dich tun kann.");
 						res.put("closeContext", "true");
 						return Response.ok().entity(res).build();
 
@@ -355,10 +348,9 @@ public class PrivacyControlService extends RESTService {
 								+ "[2] Einwilligung zur Datenverarbeitung abgeben. \n"
 								+ "[3] Einwilligung zur Datenverarbeitung anzeigen. \n"
 								+ "[4] Einwilligung zur Datenverarbeitung widerrufen. \n"
-								+ "[5] Geloggte Zugriffe auf persoenliche Daten anzeigen. \n"
-								+ "[6] Gespeicherte Daten aus Learning Record Store anzeigen. \n"
+								+ "[5] Gespeicherte Daten aus Learning Record Store anzeigen. \n"
 								+ "[0] Abbrechen. \n \n"
-								+ "Gib eine Nummer ein, um die jeweilige Funktionalitaet zu nutzen.";
+								+ "Um die Funktion zu nutzen, gib die entsprechende Nummer ein.";
 
 				JSONObject res = new JSONObject();
 				res.put("text", greeting);
@@ -905,15 +897,17 @@ public class PrivacyControlService extends RESTService {
 					String toHash = timestamp + email + action + object;
 					boolean isVerified = verifyXApiStatement(toHash);
 
+					ZonedDateTime time = ZonedDateTime.parse(timestamp, DateTimeFormatter.ISO_INSTANT);
+					
 					StringBuilder stringBuilder = new StringBuilder();
-					stringBuilder.append(timestamp);
+					stringBuilder.append(DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM).format(time));
 					stringBuilder.append("\n");
 					stringBuilder.append(action);
 					stringBuilder.append(": ");
 					stringBuilder.append(object);
 					stringBuilder.append("\n");
 					if (isVerified) {
-						stringBuilder.append("Blockchain-verified extraction \n");				
+						stringBuilder.append("Datenursprung Blockchain-geprueft \n");			
 					}
 
 					resBuilder.append(stringBuilder.toString());
@@ -978,7 +972,7 @@ public class PrivacyControlService extends RESTService {
 			}
 			return response.toString();
 		} else {
-			return String.valueOf(Response.status(500).entity("Client does not exist in LRS").build());
+			return "";
 		}
 	}
 
