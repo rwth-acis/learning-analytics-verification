@@ -11,6 +11,7 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.FormatStyle;
@@ -269,10 +270,10 @@ public class PrivacyControlService extends RESTService {
 						String consentLevels = getConsentLevelsFormatted();
 
 						StringBuilder storageStringBuilder = new StringBuilder();
-						storageStringBuilder.append("Hier kannst Du festlegen, welche Deiner Daten aus welchen System gesammelt und analysiert werden duerfen. \n");
-						storageStringBuilder.append("Service bezeichnet das System in dem die Daten erfasst werden (z.B. Moodle). \n");
-						storageStringBuilder.append("Aktionen bestimmt die Art der Daten (z.B. 'completed' fuer ein abgeschlossenes Quiz oder 'posted' fuer einen verfassten Forumseintrag). \n");
-						storageStringBuilder.append("Dazu hast du folgende Optionen: \n");
+						storageStringBuilder.append("Hier kannst Du festlegen, welche Deiner Daten aus welchem System gesammelt und analysiert werden duerfen. \n");
+						storageStringBuilder.append("'Services' bezeichnet die Systeme, in denen die Daten erfasst werden (z.B. Moodle). \n");
+						storageStringBuilder.append("'Aktionen' bestimmt die Art der Daten (z.B. 'completed' fuer ein abgeschlossenes Quiz oder 'posted' fuer einen verfassten Forumseintrag). \n");
+						storageStringBuilder.append("Dazu hast Du folgende Optionen: \n");
 						storageStringBuilder.append(consentLevels);
 						storageStringBuilder.append("Bitte gib die Nummern der Optionen an, mit denen Du einverstanden bist (bei mehreren: '1,2')");
 						
@@ -349,8 +350,8 @@ public class PrivacyControlService extends RESTService {
 								+ "[3] Einwilligung zur Datenverarbeitung anzeigen. \n"
 								+ "[4] Einwilligung zur Datenverarbeitung widerrufen. \n"
 								+ "[5] Gespeicherte Daten aus Learning Record Store anzeigen. \n"
-								+ "[0] Abbrechen. \n \n"
-								+ "Um die Funktion zu nutzen, gib die entsprechende Nummer ein.";
+								+ "[0] Abbrechen. \n"
+								+ "Um eine Funktion zu nutzen, gib die entsprechende Nummer ein.";
 
 				JSONObject res = new JSONObject();
 				res.put("text", greeting);
@@ -896,18 +897,18 @@ public class PrivacyControlService extends RESTService {
 					String object = ((JSONObject) ((JSONObject) ((JSONObject) statement.get("object")).get("definition")).get("name")).getAsString("en-US");
 					String toHash = timestamp + email + action + object;
 					boolean isVerified = verifyXApiStatement(toHash);
-
-					ZonedDateTime time = ZonedDateTime.parse(timestamp, DateTimeFormatter.ISO_INSTANT);
+					
+					ZonedDateTime time = ZonedDateTime.parse(timestamp).withZoneSameInstant(ZoneId.of("Europe/Berlin"));
 					
 					StringBuilder stringBuilder = new StringBuilder();
-					stringBuilder.append(DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM).format(time));
+					stringBuilder.append(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm").format(time));
 					stringBuilder.append("\n");
 					stringBuilder.append(action);
 					stringBuilder.append(": ");
 					stringBuilder.append(object);
 					stringBuilder.append("\n");
 					if (isVerified) {
-						stringBuilder.append("Datenursprung Blockchain-geprueft \n");			
+						stringBuilder.append("Blockchain-verifizierter Datensatz \n");			
 					}
 
 					resBuilder.append(stringBuilder.toString());
