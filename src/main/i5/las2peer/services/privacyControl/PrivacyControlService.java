@@ -39,6 +39,13 @@ import org.web3j.tuples.generated.Tuple4;
 
 import i5.las2peer.api.Context;
 import i5.las2peer.api.ManualDeployment;
+import i5.las2peer.api.execution.InternalServiceException;
+import i5.las2peer.api.execution.ServiceAccessDeniedException;
+import i5.las2peer.api.execution.ServiceInvocationFailedException;
+import i5.las2peer.api.execution.ServiceMethodNotFoundException;
+import i5.las2peer.api.execution.ServiceNotAuthorizedException;
+import i5.las2peer.api.execution.ServiceNotAvailableException;
+import i5.las2peer.api.execution.ServiceNotFoundException;
 import i5.las2peer.api.security.AgentException;
 import i5.las2peer.api.security.AgentNotFoundException;
 import i5.las2peer.api.security.AgentOperationFailedException;
@@ -95,8 +102,6 @@ public class PrivacyControlService extends RESTService {
 
 	private final static String DEFAULT_CONFIG_FILE = "etc/consentConfiguration.xml";
 
-	private String lrsDomain;
-	private String lrsAuth;
 	private static ConcurrentMap<String, String> userToMoodleToken = new ConcurrentHashMap<>();
 
 	private static EthereumNode node;
@@ -119,7 +124,6 @@ public class PrivacyControlService extends RESTService {
 	// ------------------------------ Initialization -----------------------------
 
 	public PrivacyControlService() {
-		setFieldValues();
 	}
 
 	@POST
@@ -870,7 +874,7 @@ public class PrivacyControlService extends RESTService {
 	// --------------------------- Verification ----------------------------
 
 	/**
-	 * Queries all xAPIstatements from the LRS and filters relevant statements based on the given userEmail.
+	 * Queries all xAPIstatements from the LRS via the proxy service and filters relevant statements based on the given userEmail.
 	 * Statements are verified with the logs on the Ethereum blockchain, formatted and returned.
 	 * 
 	 * @param User (represented by email) to revoke consent for.
@@ -878,7 +882,12 @@ public class PrivacyControlService extends RESTService {
 	 */
 	private String getStatementsForUserEmail(String userEmail) {
 		String token = userToMoodleToken.get(userEmail);
-		String statementsRaw = getStatementsFromLRS(token);
+		String statementsRaw = "";
+		try {
+			statementsRaw = (String) Context.get().invoke("i5.las2peer.services.learningLockerService.LearningLockerService@1.0.0", "getStatementsFromLRS", token);
+		} catch (Exception e) {
+			return "Es konnten keine Daten verifiziert werden.";
+		}
 
 		JSONParser parser = new JSONParser(JSONParser.MODE_PERMISSIVE);
 		StringBuilder resBuilder = new StringBuilder();
@@ -903,7 +912,7 @@ public class PrivacyControlService extends RESTService {
 					
 					StringBuilder stringBuilder = new StringBuilder();
 					stringBuilder.append(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm").format(time));
-					stringBuilder.append("\n");
+					stringBuilder.append("  ");
 					stringBuilder.append(action);
 					stringBuilder.append(": ");
 					stringBuilder.append(object);
@@ -911,7 +920,7 @@ public class PrivacyControlService extends RESTService {
 					if (isVerified) {
 						stringBuilder.append("Blockchain-verifizierter Datensatz \n");			
 					} else {
-						stringBuilder.append("Datensatz nicht verifiziert");
+						stringBuilder.append("Datensatz nicht verifiziert \n");
 					}
 
 					resBuilder.append(stringBuilder.toString());
@@ -924,112 +933,6 @@ public class PrivacyControlService extends RESTService {
 			e.printStackTrace();
 		}
 		return resBuilder.toString();
-	}
-
-	/**
-	 * Gets all xAPI statements for the given clientID (moodleToken).
-	 * 
-	 * @param Token to identify the relevant client
-	 * @return xAPIstatements in JSON String
-	 */
-	private String getStatementsFromLRS(String token)  {
-		logger.info("Starting extraction of LRS data...");
-		StringBuffer response = new StringBuffer();
-		String clientKey;
-		String clientSecret;
-		Object clientId = null;
-		try {
-			clientId = searchIfClientExists(token);
-		} catch (IOException e) {
-			e.printStackTrace();
-		} catch (ParseException e) {
-			e.printStackTrace();
-		}
-
-		if(!(clientId).equals("noClientExists")) {
-			clientKey = (String) ((JSONObject) clientId).get("basic_key");
-			clientSecret = (String) ((JSONObject) clientId).get("basic_secret");
-			String auth = Base64.getEncoder().encodeToString((clientKey + ":" + clientSecret).getBytes());
-
-			try {
-				URL url = new URL(lrsDomain + "/data/xAPI/statements");
-				HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-				conn.setRequestMethod("GET");
-				conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
-				conn.setRequestProperty("X-Experience-API-Version","1.0.3");
-				conn.setRequestProperty("Authorization", "Basic " + auth);
-				conn.setRequestProperty("Cache-Control", "no-cache");
-
-				BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-
-				String inputLine;
-
-				while ((inputLine = in.readLine()) != null) {
-					response.append(inputLine);
-				}
-				in.close();
-				conn.disconnect();
-			} catch (MalformedURLException e) {
-				e.printStackTrace();
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
-			return response.toString();
-		} else {
-			return "";
-		}
-	}
-
-	/**
-	 * Gets the corresponding LRS-client-object for a given ClientID (in this case a moodleToken).
-	 * 
-	 * @param Token to identify the relevant client
-	 * @return LRS-Client
-	 * @throws IOException
-	 * @throws ParseException
-	 */
-	private Object searchIfClientExists(String token) throws IOException, ParseException {
-		URL url = null;
-		try {
-			try {
-				String clientURL = lrsDomain + "/api/v2/client";
-				url = new URL(clientURL);
-				HttpURLConnection conn = null;
-				conn = (HttpURLConnection) url.openConnection();
-				conn.setDoOutput(true);
-				conn.setDoInput(true);
-				conn.setRequestMethod("GET");
-				conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
-				conn.setRequestProperty("X-Experience-API-Version","1.0.3");
-				conn.setRequestProperty("Authorization", "Basic " + lrsAuth);
-				conn.setRequestProperty("Cache-Control", "no-cache");
-				conn.setUseCaches(false);
-
-				InputStream is = conn.getInputStream();
-				BufferedReader rd = new BufferedReader(new InputStreamReader(is));
-				String line;
-				StringBuilder response = new StringBuilder();
-				while((line = rd.readLine()) != null) {
-					response.append(line);
-				}
-				Object obj= JSONValue.parse(response.toString());
-
-				for(int i = 0 ; i < ((JSONArray ) obj).size(); i ++) {
-					JSONObject client = (JSONObject) ((JSONArray) obj).get(i);
-					if(client.get("title").equals(token)) {
-						return client.get("api");
-					}
-				}
-			}  catch (MalformedURLException e) {
-				e.printStackTrace();
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
-		} catch(Exception e) {
-			System.out.println(e);
-			return "Error";
-		}
-		return "noClientExists";
 	}
 
 	/**
