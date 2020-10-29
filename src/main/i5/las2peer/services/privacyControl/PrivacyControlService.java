@@ -183,14 +183,14 @@ public class PrivacyControlService extends RESTService {
 	// ------------------------------ Bot communication ----------------------------
 
 	@POST
-	@Path("/showGreeting")
+	@Path("/showConsentMenu")
 	@Consumes(MediaType.TEXT_PLAIN)
 	@Produces(MediaType.APPLICATION_JSON)
 	@ApiResponses(
 			value = { @ApiResponse(
 					code = HttpURLConnection.HTTP_OK,
 					message = "Returned menu.") })
-	public Response showGreeting(String body) throws ParseException {
+	public Response showConsentMenu(String body) throws ParseException {
 		JSONParser parser = new JSONParser(JSONParser.MODE_PERMISSIVE);
 		String channel = "";
 
@@ -259,16 +259,7 @@ public class PrivacyControlService extends RESTService {
 						res.put("closeContext", "true");
 						return Response.ok().entity(res).build();
 
-					case 1: // consentLevels();
-						logger.info("Showing consent options...");
-						String consentLevelString = getConsentLevelsFormatted();
-
-						res = new JSONObject();
-						res.put("text", "" + consentLevelString);
-						res.put("closeContext", "true");
-						return Response.ok().entity(res).build();
-
-					case 2: // storeConsent(body);
+					case 1: // storeConsent(body);
 						logger.info("Starting consent storage for user " + agent.getLoginName());
 						consentProcessing.add(channel);
 						String consentLevels = getConsentLevelsFormatted();
@@ -286,7 +277,7 @@ public class PrivacyControlService extends RESTService {
 						res.put("closeContext", "false");
 						return Response.ok().entity(res).build();
 
-					case 3: // showConsent(body);
+					case 2: // showConsent(body);
 						List<BigInteger> givenConsent;
 						try {
 							givenConsent = getConsentLevelsForLoginName(agent.getLoginName());
@@ -312,7 +303,7 @@ public class PrivacyControlService extends RESTService {
 						}
 						break;
 
-					case 4: // revokeConsent(body);
+					case 3: // revokeConsent(body);
 						logger.info("Revoking consent for user " + agent.getLoginName());
 						try {
 							revokeUserConsent(agent.getLoginName());
@@ -325,15 +316,6 @@ public class PrivacyControlService extends RESTService {
 							e.printStackTrace();
 						}
 						break;
-
-					case 5: // verifyData(body)
-						logger.info("LRS Data requested for user " + agent.getLoginName());
-						String resText = getStatementsForUserEmail(email);
-
-						res = new JSONObject();
-						res.put("text", resText + "\n Melde Dich, falls ich noch etwas fuer Dich tun kann.");
-						res.put("closeContext", "true");
-						return Response.ok().entity(res).build();
 
 					default:
 						break;
@@ -349,11 +331,9 @@ public class PrivacyControlService extends RESTService {
 				choosingFunction.add(channel);
 				String greeting = 
 						"Hallo, ich kann folgendes fuer dich tun: \n" 
-								+ "[1] Informationen zu moeglichen Datenverarbeitungseinwilligungen anzeigen. \n"
-								+ "[2] Einwilligung zur Datenverarbeitung abgeben. \n"
-								+ "[3] Einwilligung zur Datenverarbeitung anzeigen. \n"
-								+ "[4] Einwilligung zur Datenverarbeitung widerrufen. \n"
-								+ "[5] Gespeicherte Daten aus Learning Record Store anzeigen. \n"
+								+ "[1] Einwilligung zur Datenverarbeitung abgeben. \n"
+								+ "[2] Einwilligung zur Datenverarbeitung anzeigen. \n"
+								+ "[3] Einwilligung zur Datenverarbeitung widerrufen. \n"
 								+ "[0] Abbrechen. \n"
 								+ "Um eine Funktion zu nutzen, gib die entsprechende Nummer ein.";
 
@@ -373,275 +353,70 @@ public class PrivacyControlService extends RESTService {
 		res.put("closeContext", "true");
 		return Response.ok().entity(res).build();
 	}
-
-	@GET
-	@Path("/consentLevels")
-	@Produces(MediaType.APPLICATION_JSON)
-	@ApiResponses(
-			value = { @ApiResponse(
-					code = HttpURLConnection.HTTP_OK,
-					message = "Returned consent levels.") })
-	public Response consentLevels() throws ParseException {
-		String consentLevelString = getConsentLevelsFormatted();
-		JSONObject responseBody = new JSONObject();
-		responseBody.put("text", "" + consentLevelString);
-		responseBody.put("closeContext", "true");
-		return Response.ok().entity(responseBody).build();
-	}
-
+	
 	@POST
-	@Path("/storeConsent")
-	@Consumes(MediaType.TEXT_PLAIN)
+	@Path("/showGreeting")
 	@Produces(MediaType.APPLICATION_JSON)
 	@ApiResponses(
 			value = { @ApiResponse(
 					code = HttpURLConnection.HTTP_OK,
-					message = "Consent level set.") })
-	public Response storeConsent(String body) {
+					message = "Delivered greeting.") })
+	public Response showGreeting(String body) {
+		logger.info("Greeting user...");
 		JSONParser parser = new JSONParser(JSONParser.MODE_PERMISSIVE);
-		String channel = "";
-
+		StringBuilder resBuilder = new StringBuilder();
+		
 		try {
 			JSONObject bodyObj = (JSONObject) parser.parse(body);
-			channel = bodyObj.getAsString("channel");
-
-			// Get corresponding agent
-			UserAgentImpl agent = getAgentFromUserEmail(bodyObj.getAsString("email"));
+			String email = bodyObj.getAsString("email");
+			
+			UserAgentImpl agent = getAgentFromUserEmail(email);
 			if (agent == null) {
 				JSONObject err = new JSONObject();
-				err.put("text", "Zu deiner Email ist kein las2peer User registriert. Bitte registriere Dich um diesen Service zu nutzen.");
+				err.put("text", "Zu Deiner Email ist kein las2peer User registriert. Bitte registriere Dich um diesen Service zu nutzen.");
 				err.put("closeContext", "true");
 				return Response.ok().entity(err).build();
 			}
-
-			// Check if consent storage was already started.
-			if (consentProcessing.contains(channel)) {
-				logger.info("Continue consent storage for user " + agent.getLoginName());
-
-				// Get consent level from message
-				String chosenConsentLevels = bodyObj.getAsString("msg").split("\\.")[0];
-
-				try {
-					List<BigInteger> levels = new ArrayList<BigInteger>();
-					for (String s : chosenConsentLevels.split("\\,")) {
-						// TODO Validate if consent object with that level exists!
-						levels.add(new BigInteger(s));
-					}
-					storeUserConsentLevels(agent.getLoginName(), levels);
-
-				} catch (NumberFormatException e) {
-					// Build error but don't close context when ID is not valid.
-					JSONObject err = new JSONObject();
-					err.put("text", "Bitte gib eine oder mehrere gueltige Ids ein.");
-					err.put("closeContext", "false");
-					return Response.ok().entity(err).build();
-				}
-
-				consentProcessing.remove(channel);
-
-				// Build response and close context.
-				JSONObject res = new JSONObject();
-				res.put("text", "Einwilligung erfolgreich gespeichert.");
-				res.put("closeContext", "true");
-				return Response.ok().entity(res).build();
-			} else {
-				logger.info("Starting consent storage for user " + agent.getLoginName());
-				consentProcessing.add(channel);
-				String consentLevelString = getConsentLevelsFormatted();
-
-				// Build response and close context.
-				JSONObject res = new JSONObject();
-				res.put("text", "Bitte gib die Ids (z.B. 1,2) der Datenverarbeitungsoptionen an, mit denen Du einverstanden bist. \n" + consentLevelString);
-				res.put("closeContext", "false");
-				return Response.ok().entity(res).build();
-			}
+			
+			resBuilder.append("Hi, \n");
+			resBuilder.append("ich helfe Dir dabei, mehr Transparenz und Kontrolle in Bezug auf Deine persoenlichen Daten aus der Lernumgebung zu erhalten. \n");
+			resBuilder.append("Moechtest Du dazu weitere Informationen erhalten?");
 		} catch (ParseException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
-		} catch (EthereumException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+			resBuilder.append("Leider ist bei Deiner Anfrage etwas schief gegangen.");
 		}
-
-		if (!channel.isEmpty()) {
-			consentProcessing.remove(channel);
-		}
-
-		JSONObject err = new JSONObject();
-		err.put("text", "Etwas ist bei der Anfrage schiefgegangen.");
-		err.put("closeContext", "true");
-		return Response.ok().entity(err).build();
-	}
-
-
-	@POST
-	@Path("/showConsent")
-	@Consumes(MediaType.TEXT_PLAIN)
-	@Produces(MediaType.APPLICATION_JSON)
-	@ApiResponses(
-			value = { @ApiResponse(
-					code = HttpURLConnection.HTTP_OK,
-					message = "Consent retrieved and displayed.") })
-	public Response showConsent(String body) {
-		JSONParser parser = new JSONParser(JSONParser.MODE_PERMISSIVE);
-
-		try {
-			JSONObject bodyObj = (JSONObject) parser.parse(body);
-
-			// Get corresponding agent
-			UserAgentImpl agent = getAgentFromUserEmail(bodyObj.getAsString("email"));
-			if (agent == null) {
-				JSONObject err = new JSONObject();
-				err.put("text", "Zu deiner Email ist kein las2peer User registriert. Bitte registriere Dich um diesen Service zu nutzen.");
-				err.put("closeContext", "true");
-				return Response.ok().entity(err).build();
-			}
-
-			// Retrieve stored consent levels
-			List<BigInteger> givenConsent = getConsentLevelsForLoginName(agent.getLoginName());
-
-			String resText = "";
-			if (givenConsent == null || givenConsent.isEmpty()) {
-				resText +=  "Aktuell liegt uns keine Einwilligung zu Deinem User vor.";
-			} else {
-				resText += "Es liegt eine Einwilligung zu folgenden Services/Zugriffsarten vor: \n";
-				for (BigInteger consent : givenConsent) {
-					resText += consentLevelMap.get(consent.intValue()).toString();
-					resText += "\n";
-				}
-			}
-
-			JSONObject res = new JSONObject();
-			res.put("text", resText);
-			res.put("closeContext", "true");
-			return Response.ok().entity(res).build();
-		} catch (ParseException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} catch (EthereumException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-
-		JSONObject err = new JSONObject();
-		err.put("text", "Etwas ist bei der Anfrage schiefgegangen.");
-		err.put("closeContext", "true");
-		return Response.ok().entity(err).build();
-	}
-
-	@POST
-	@Path("/revokeConsent")
-	@Consumes(MediaType.TEXT_PLAIN)
-	@Produces(MediaType.APPLICATION_JSON)
-	@ApiResponses(
-			value = { @ApiResponse(
-					code = HttpURLConnection.HTTP_OK,
-					message = "Revoked consent.") })
-	public Response revokeConsent(String body) {
-		JSONParser parser = new JSONParser(JSONParser.MODE_PERMISSIVE);
-
-		try {
-			JSONObject bodyObj = (JSONObject) parser.parse(body);
-
-			// Get corresponding agent
-			UserAgentImpl agent = getAgentFromUserEmail(bodyObj.getAsString("email"));
-			if (agent == null) {
-				JSONObject errorMsg = new JSONObject();
-				errorMsg.put("text", "Zu deiner Email ist kein las2peer User registriert. Bitte registriere Dich um diesen Service zu nutzen.");
-				errorMsg.put("closeContext", "true");
-				return Response.ok().entity(errorMsg).build();
-			}
-
-			revokeUserConsent(agent.getLoginName());
-
-			JSONObject responseBody = new JSONObject();
-			responseBody.put("text", "Deine Einstellungen wurden angepasst.");
-			responseBody.put("closeContext", "true");
-			return Response.ok().entity(responseBody).build();
-		} catch (ParseException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} catch (EthereumException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-
-		JSONObject errorMsg = new JSONObject();
-		errorMsg.put("text", "Etwas ist bei der Anfrage schiefgegangen.");
-		errorMsg.put("closeContext", "true");
-		return Response.ok().entity(errorMsg).build();
-	}
-
-	@POST
-	@Path("/showLogEntries")
-	@Consumes(MediaType.TEXT_PLAIN)
-	@Produces(MediaType.APPLICATION_JSON)
-	@ApiResponses(
-			value = { @ApiResponse(
-					code = HttpURLConnection.HTTP_OK,
-					message = "Showed log entries.") })
-	public Response showLogEntries(String body) {
-		JSONParser parser = new JSONParser(JSONParser.MODE_PERMISSIVE);
-
-		try {
-			JSONObject bodyObj = (JSONObject) parser.parse(body);
-
-			// Get corresponding agent
-			UserAgentImpl agent = getAgentFromUserEmail(bodyObj.getAsString("email"));
-			if (agent == null) {
-				JSONObject errorMsg = new JSONObject();
-				errorMsg.put("text", "Zu deiner Email ist kein las2peer User registriert. Bitte registriere Dich um diesen Service zu nutzen.");
-				errorMsg.put("closeContext", "true");
-				return Response.ok().entity(errorMsg).build();
-			}
-
-			logger.info("Requesting logs for user " + agent.getLoginName());
-
-			String res = "";
-			res += getLogEntries(agent.getLoginName()).toString();
-
-			logger.info("Showing logs: " + res);
-
-			JSONObject responseBody = new JSONObject();
-			responseBody.put("text", res);
-			responseBody.put("closeContext", "true");
-			return Response.ok().entity(responseBody).build();
-		} catch (ParseException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} catch (EthereumException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-
-		JSONObject errorMsg = new JSONObject();
-		errorMsg.put("text", "Your request failed.");
-		errorMsg.put("closeContext", "true");
-		return Response.ok().entity(errorMsg).build();
-	}
-
-	@POST
-	@Path("/verifyData")
-	@Produces(MediaType.APPLICATION_JSON)
-	@ApiResponses(
-			value = { @ApiResponse(
-					code = HttpURLConnection.HTTP_OK,
-					message = "Verifed xApi statements.") })
-	public Response verifyData(String body) {
-		logger.info("Data requested...");
-		JSONParser parser = new JSONParser(JSONParser.MODE_PERMISSIVE);
-		String resText = "";
-
-		try {
-			JSONObject bodyObj = (JSONObject) parser.parse(body);
-			resText += getStatementsForUserEmail(bodyObj.getAsString("email"));
-		} catch (ParseException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} 
 
 		JSONObject res = new JSONObject();
-		res.put("text", resText);
+		res.put("text", resBuilder.toString());
+		res.put("closeContext", "true");
+		return Response.ok().entity(res).build();
+	}
+
+	@POST
+	@Path("/showLrsData")
+	@Produces(MediaType.APPLICATION_JSON)
+	@ApiResponses(
+			value = { @ApiResponse(
+					code = HttpURLConnection.HTTP_OK,
+					message = "Retrieved relevant learning analytics data.") })
+	public Response showLrsData(String body) {
+		logger.info("Data requested...");
+		JSONParser parser = new JSONParser(JSONParser.MODE_PERMISSIVE);
+		StringBuilder resBuilder = new StringBuilder();
+
+		try {
+			JSONObject bodyObj = (JSONObject) parser.parse(body);
+			resBuilder.append(getStatementsForUserEmail(bodyObj.getAsString("email")));
+		} catch (ParseException e) {
+			e.printStackTrace();
+			resBuilder.append("Leider ist bei Deiner Anfrage etwas schief gegangen.");
+		} 
+		
+		resBuilder.append("\n");
+		resBuilder.append("Melde Dich, falls ich noch etwas fuer Dich tun kann.");
+
+		JSONObject res = new JSONObject();
+		res.put("text", resBuilder.toString());
 		res.put("closeContext", "true");
 		return Response.ok().entity(res).build();
 	}
