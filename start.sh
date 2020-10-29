@@ -114,18 +114,10 @@ export SERVICE=${SERVICE_NAME}.${SERVICE_CLASS}@${SERVICE_VERSION}
 
 [[ -z "${SERVICE_PASSPHRASE}" ]] && export SERVICE_PASSPHRASE='newPass'
 
-# check mandatory variables
-[[ -z "${LRS_DOMAIN}" ]] && \
-    echo "Mandatory variable LRS_DOMAIN is not set. Add -e LRS_DOMAIN=lrsDomain to your arguments." && exit 1
-[[ -z "${LRS_AUTH_ADMIN}" ]] && \
-    echo "Mandatory variable LRS_AUTH is not set. Add -e LRS_AUTH_ADMIN=lrsAuthAdmin to your arguments." && exit 1
-
 # configure service properties
 function set_in_service_config {
     sed -i "s?${1}[[:blank:]]*=.*?${1}=${2}?g" ${SERVICE_PROPERTY_FILE}
 }
-set_in_service_config lrsDomain ${LRS_DOMAIN}
-set_in_service_config lrsAuth "${LRS_AUTH_ADMIN}"
 
 echo Starting las2peer node ...
 if [ -n "$LAS2PEER_ETH_HOST" ]; then
