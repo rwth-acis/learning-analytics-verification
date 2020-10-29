@@ -882,6 +882,7 @@ public class PrivacyControlService extends RESTService {
 
 		JSONParser parser = new JSONParser(JSONParser.MODE_PERMISSIVE);
 		StringBuilder resBuilder = new StringBuilder();
+		resBuilder.append("Folgende Learning Analytics Daten liegen zu Dir vor: \n \n");
 
 		try {
 			JSONObject obj = (JSONObject) parser.parse(statementsRaw);
@@ -909,6 +910,8 @@ public class PrivacyControlService extends RESTService {
 					stringBuilder.append("\n");
 					if (isVerified) {
 						stringBuilder.append("Blockchain-verifizierter Datensatz \n");			
+					} else {
+						stringBuilder.append("Datensatz nicht verifiziert");
 					}
 
 					resBuilder.append(stringBuilder.toString());
