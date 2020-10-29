@@ -4,7 +4,7 @@ import i5.las2peer.api.Configurable;
 
 public class LaRegistryConfiguration extends Configurable {
 	
-	private String transactionLogRegistryAddress;
+	private String verificationRegistryAddress;
 	private String consentRegistryAddress;
 	
 	public LaRegistryConfiguration() {
@@ -15,7 +15,7 @@ public class LaRegistryConfiguration extends Configurable {
 		return consentRegistryAddress;
 	}
 	
-	public String getTransactionLogRegistryAddress() {
-		return transactionLogRegistryAddress;
+	public String getVerificationRegistryAddress() {
+		return verificationRegistryAddress;
 	}
 }

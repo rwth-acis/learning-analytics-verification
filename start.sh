@@ -36,7 +36,7 @@ function port { echo ${1#*:}; }
     ./node_modules/.bin/truffle migrate --network docker_boot 2>&1 | tee migration-la.log
     echo done. Setting contract addresses in config file ...
     # yeah, this isn't fun:
-    cat migration-la.log | grep -A5 "\(Deploying\|Replacing\|contract address\) \'\(ConsentRegistry\|TransactionLogRegistry\)\'" | grep '\(Deploying\|Replacing\|contract address\)' | tr -d " '>:" | sed -e '$!N;s/\n//;s/Deploying//;s/Replacing//;s/contractaddress/Address = /;s/./\l&/' >> "${LA_ETH_PROPS_FILE}"
+    cat migration-la.log | grep -A5 "\(Deploying\|Replacing\|contract address\) \'\(ConsentRegistry\|VerificationRegistry\)\'" | grep '\(Deploying\|Replacing\|contract address\)' | tr -d " '>:" | sed -e '$!N;s/\n//;s/Deploying//;s/Replacing//;s/contractaddress/Address = /;s/./\l&/' >> "${LA_ETH_PROPS_FILE}"
     cp migration-la.log /app/las2peer/node-storage/migration-la.log
     echo done. 
  }
@@ -69,7 +69,7 @@ if [ -n "$LAS2PEER_ETH_HOST" ]; then
 	if waitForEndpoint $(host $LAS2PEER_ETH_HOST) $(port $LAS2PEER_ETH_HOST) 100; then
 		echo Found Eth client. 
 		if [ -s "/app/las2peer/node-storage/migration-la.log" ]; then
-			cat /app/las2peer/node-storage/migration-la.log | grep -A5 "\(Deploying\|Replacing\|contract address\) \'\(ConsentRegistry\|TransactionLogRegistry\)\'" | grep '\(Deploying\|Replacing\|contract address\)' | tr -d " '>:" | sed -e '$!N;s/\n//;s/Deploying//;s/Replacing//;s/contractaddress/Address = /;s/./\l&/' >> "${LA_ETH_PROPS_FILE}"
+			cat /app/las2peer/node-storage/migration-la.log | grep -A5 "\(Deploying\|Replacing\|contract address\) \'\(ConsentRegistry\|VerificationRegistry\)\'" | grep '\(Deploying\|Replacing\|contract address\)' | tr -d " '>:" | sed -e '$!N;s/\n//;s/Deploying//;s/Replacing//;s/contractaddress/Address = /;s/./\l&/' >> "${LA_ETH_PROPS_FILE}"
 			echo Migrated from logs.
 		else
 			truffleMigrateLa

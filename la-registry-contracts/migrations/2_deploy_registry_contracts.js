@@ -1,7 +1,7 @@
 const ConsentRegistry = artifacts.require('ConsentRegistry')
-const TransactionLogRegistry = artifacts.require('TransactionLogRegistry')
+const VerificationRegistry = artifacts.require('VerificationRegistry')
 
 module.exports = function (deployer) {
-    deployer.deploy(TransactionLogRegistry)
+    deployer.deploy(VerificationRegistry)
     deployer.deploy(ConsentRegistry)
 };

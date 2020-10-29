@@ -1,22 +1,14 @@
 package i5.las2peer.services.privacyControl;
 
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.math.BigInteger;
 import java.net.HttpURLConnection;
-import java.net.MalformedURLException;
-import java.net.URL;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.time.format.FormatStyle;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -26,7 +18,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 import javax.ws.rs.Consumes;
-import javax.ws.rs.GET;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
@@ -35,17 +26,10 @@ import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 
 import org.w3c.dom.Element;
-import org.web3j.tuples.generated.Tuple4;
+import org.web3j.tuples.generated.Tuple2;
 
 import i5.las2peer.api.Context;
 import i5.las2peer.api.ManualDeployment;
-import i5.las2peer.api.execution.InternalServiceException;
-import i5.las2peer.api.execution.ServiceAccessDeniedException;
-import i5.las2peer.api.execution.ServiceInvocationFailedException;
-import i5.las2peer.api.execution.ServiceMethodNotFoundException;
-import i5.las2peer.api.execution.ServiceNotAuthorizedException;
-import i5.las2peer.api.execution.ServiceNotAvailableException;
-import i5.las2peer.api.execution.ServiceNotFoundException;
 import i5.las2peer.api.security.AgentException;
 import i5.las2peer.api.security.AgentNotFoundException;
 import i5.las2peer.api.security.AgentOperationFailedException;
@@ -63,7 +47,7 @@ import i5.las2peer.serialization.XmlTools;
 import i5.las2peer.services.privacyControl.Consent.ConsentLevel;
 import i5.las2peer.services.privacyControl.Consent.ConsentRegistry;
 import i5.las2peer.services.privacyControl.TransactionLogging.LogEntry;
-import i5.las2peer.services.privacyControl.TransactionLogging.TransactionLogRegistry;
+import i5.las2peer.services.privacyControl.TransactionLogging.VerificationRegistry;
 import i5.las2peer.tools.CryptoException;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiResponse;
@@ -73,7 +57,6 @@ import io.swagger.annotations.Info;
 import io.swagger.annotations.SwaggerDefinition;
 import net.minidev.json.JSONArray;
 import net.minidev.json.JSONObject;
-import net.minidev.json.JSONValue;
 import net.minidev.json.parser.JSONParser;
 import net.minidev.json.parser.ParseException;
 
@@ -107,8 +90,8 @@ public class PrivacyControlService extends RESTService {
 	private static EthereumNode node;
 	private static ReadWriteRegistryClient registryClient;
 
-	private static TransactionLogRegistry transactionLogRegistry;
-	private static String transactionLogRegistryAddress;
+	private static VerificationRegistry verificationRegistry;
+	private static String verificationRegistryAddress;
 
 	private static ConsentRegistry consentRegistry;
 	private static String consentRegistryAddress;
@@ -157,10 +140,10 @@ public class PrivacyControlService extends RESTService {
 		// Get smart contract addresses from configuration file.
 		LaRegistryConfiguration config = new LaRegistryConfiguration();
 		consentRegistryAddress = config.getConsentRegistryAddress();
-		transactionLogRegistryAddress = config.getTransactionLogRegistryAddress();
+		verificationRegistryAddress = config.getVerificationRegistryAddress();
 
 		logger.info("Sucessfully loaded migrated smart contracts...");
-		logger.info("TransactionLogRegistry deployed at: " + transactionLogRegistryAddress);
+		logger.info("VerificationRegistry deployed at: " + verificationRegistryAddress);
 		logger.info("ConsentRegistry deployed at: " + consentRegistryAddress);
 
 		// Deploy smart contracts from wrapper classes
@@ -170,7 +153,7 @@ public class PrivacyControlService extends RESTService {
 			registryClient = node.getRegistryClient();
 
 			consentRegistry = deployConsentRegistry();
-			transactionLogRegistry = deployTransactionLogRegistry();
+			verificationRegistry = deployVerificationRegistry();
 			initialized = true;
 		} catch (Exception e) {
 			logger.warning("Initilization of smart contracts failed!");
@@ -355,36 +338,21 @@ public class PrivacyControlService extends RESTService {
 	}
 	
 	@POST
-	@Path("/showGreeting")
+	@Path("/showServiceInformation")
 	@Produces(MediaType.APPLICATION_JSON)
 	@ApiResponses(
 			value = { @ApiResponse(
 					code = HttpURLConnection.HTTP_OK,
 					message = "Delivered greeting.") })
-	public Response showGreeting(String body) {
+	public Response showServiceInformation(String body) {
 		logger.info("Greeting user...");
 		JSONParser parser = new JSONParser(JSONParser.MODE_PERMISSIVE);
 		StringBuilder resBuilder = new StringBuilder();
 		
-		try {
-			JSONObject bodyObj = (JSONObject) parser.parse(body);
-			String email = bodyObj.getAsString("email");
-			
-			UserAgentImpl agent = getAgentFromUserEmail(email);
-			if (agent == null) {
-				JSONObject err = new JSONObject();
-				err.put("text", "Zu Deiner Email ist kein las2peer User registriert. Bitte registriere Dich um diesen Service zu nutzen.");
-				err.put("closeContext", "true");
-				return Response.ok().entity(err).build();
-			}
-			
-			resBuilder.append("Hi, \n");
-			resBuilder.append("ich helfe Dir dabei, mehr Transparenz und Kontrolle in Bezug auf Deine persoenlichen Daten aus der Lernumgebung zu erhalten. \n");
-			resBuilder.append("Moechtest Du dazu weitere Informationen erhalten?");
-		} catch (ParseException e) {
-			e.printStackTrace();
-			resBuilder.append("Leider ist bei Deiner Anfrage etwas schief gegangen.");
-		}
+		// TODO Insert info text about the service and its function.
+		resBuilder.append("Hi, \n");
+		resBuilder.append("ich helfe Dir dabei, mehr Transparenz und Kontrolle in Bezug auf Deine persoenlichen Daten aus der Lernumgebung zu erhalten. \n");
+		resBuilder.append("Moechtest Du dazu weitere Informationen erhalten?");
 
 		JSONObject res = new JSONObject();
 		res.put("text", resBuilder.toString());
@@ -536,16 +504,15 @@ public class PrivacyControlService extends RESTService {
 		return consentLevels;
 	}
 
-	// ------------------------- Transaction logging ----------------------------
+	// ------------------------- Verification ----------------------------
 
-	private TransactionLogRegistry deployTransactionLogRegistry() {
-		// TransactionLogRegistry contract = registryClient.deploySmartContract(TransactionLogRegistry.class, TransactionLogRegistry.BINARY);
-		TransactionLogRegistry contract = registryClient.loadSmartContract(TransactionLogRegistry.class, transactionLogRegistryAddress);
+	private VerificationRegistry deployVerificationRegistry() {
+		VerificationRegistry contract = registryClient.loadSmartContract(VerificationRegistry.class, verificationRegistryAddress);
 		return contract;
 	}
 
-	public String getTransactionLogRegistryAddress() {
-		return transactionLogRegistryAddress;
+	public String getVerificationRegistryAddress() {
+		return verificationRegistryAddress;
 	}
 
 	/**
@@ -584,7 +551,7 @@ public class PrivacyControlService extends RESTService {
 			byte[] hash = Util.soliditySha3(stringBuilder.toString());
 
 			try {
-				transactionLogRegistry.createLogEntry(Util.padAndConvertString(agent.getLoginName(), 32), Util.padAndConvertString(callingAgentName, 32), Util.padAndConvertString(verb, 32), hash).sendAsync().get();
+				verificationRegistry.createLogEntry(Util.padAndConvertString(agent.getLoginName(), 32), hash).sendAsync().get();
 			} catch (Exception e) {
 				throw new EthereumException(e);
 			}
@@ -598,15 +565,13 @@ public class PrivacyControlService extends RESTService {
 
 	@SuppressWarnings("deprecation")
 	public String getLogEntries(String userName) throws EthereumException {
-		Tuple4<List<BigInteger>, List<byte[]>, List<byte[]>, List<byte[]>> initialResult;
+		Tuple2<List<BigInteger>, List<byte[]>> initialResult;
 		StringBuilder resBuilder = new StringBuilder();
 		try {
-			initialResult = transactionLogRegistry.getLogEntries(Util.padAndConvertString(userName, 32)).send();
+			initialResult = verificationRegistry.getLogEntries(Util.padAndConvertString(userName, 32)).send();
 
 			List<BigInteger> timestamps = initialResult.getValue1();
-			List<byte[]> sources = initialResult.getValue2();
-			List<byte[]> operations = initialResult.getValue3();
-			List<byte[]> hashes = initialResult.getValue4();
+			List<byte[]> hashes = initialResult.getValue2();
 
 			List<LogEntry> logs = new ArrayList<LogEntry>();
 
@@ -614,7 +579,7 @@ public class PrivacyControlService extends RESTService {
 				logger.warning("Found logentry with index " + i);
 				LocalDateTime date = LocalDateTime.ofInstant(Instant.ofEpochSecond(timestamps.get(i).longValue()),
 						TimeZone.getDefault().toZoneId());
-				LogEntry entry = new LogEntry(date, Util.recoverString(sources.get(i)), Util.recoverString(operations.get(i)), Util.bytesToHexString(hashes.get(i)));
+				LogEntry entry = new LogEntry(date, null, null, Util.bytesToHexString(hashes.get(i)));
 				logs.add(entry);
 			}
 
@@ -637,7 +602,7 @@ public class PrivacyControlService extends RESTService {
 	public String getDataHashes(String userName) throws EthereumException {
 		List<byte[]> result;
 		try {
-			result = (List<byte[]>) transactionLogRegistry.getDataHashesForUser(Util.padAndConvertString(userName, 32)).send();
+			result = (List<byte[]>) verificationRegistry.getDataHashesForUser(Util.padAndConvertString(userName, 32)).send();
 			result.stream().forEach(s -> logger.warning("Hash: " + s.toString()));
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -725,7 +690,7 @@ public class PrivacyControlService extends RESTService {
 		byte[] hash = Util.soliditySha3(toHash);
 
 		try {
-			result = transactionLogRegistry.hasHashBeenRecorded(hash).sendAsync().get();
+			result = verificationRegistry.hasHashBeenRecorded(hash).sendAsync().get();
 		} catch (IllegalArgumentException e) {
 			throw new IllegalArgumentException("An argument was not formatted correctly.", e);
 		} catch (Exception e) {
