@@ -6,6 +6,18 @@
 			<function>completed</function>
 			<function>received</function>
 			<function>submitted</function>
+		</functions>
+		<services>
+			<service>Moodle</service>
+		</services>
+	</consentLevel>
+	
+	<consentLevel>
+		<name>Moodle Discussion Data</name>
+		<level>2</level>
+		<functions>
+			<function>posted</function>
+			<function>replied</function>
 			<function>answered</function>
 		</functions>
 		<services>
@@ -15,7 +27,7 @@
 	
 	<consentLevel>
 		<name>All Moodle Data</name>
-		<level>2</level>
+		<level>3</level>
 		<functions>
 			<function>completed</function>
 			<function>received</function>

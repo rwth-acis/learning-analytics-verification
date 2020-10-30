@@ -185,7 +185,7 @@ public class PrivacyControlService extends RESTService {
 			UserAgentImpl agent = getAgentFromUserEmail(email);
 			if (agent == null) {
 				JSONObject err = new JSONObject();
-				err.put("text", "Zu Deiner Email ist kein las2peer User registriert. Bitte registriere Dich um diesen Service zu nutzen.");
+				err.put("text", "Zu deiner Email ist kein las2peer User registriert. Bitte registriere dich um diesen Service zu nutzen.");
 				err.put("closeContext", "true");
 				return Response.ok().entity(err).build();
 			}
@@ -210,7 +210,7 @@ public class PrivacyControlService extends RESTService {
 
 					// Build response and close context.
 					JSONObject res = new JSONObject();
-					res.put("text", "Deine Einwilligung wurde erfolgreich gespeichert. \n Melde Dich, falls ich noch etwas fuer Dich tun kann.");
+					res.put("text", "Deine Einwilligung wurde erfolgreich gespeichert. \n" + "Melde dich, falls ich noch etwas fuer dich tun kann.");
 					res.put("closeContext", "true");
 					return Response.ok().entity(res).build();
 
@@ -238,7 +238,7 @@ public class PrivacyControlService extends RESTService {
 					case 0: // abort
 						logger.info("Abort choosing function to execute...");
 						res = new JSONObject();
-						res.put("text", "Melde Dich, falls ich noch etwas fuer Dich tun kann.");
+						res.put("text", "Melde dich, falls ich noch etwas fuer dich tun kann.");
 						res.put("closeContext", "true");
 						return Response.ok().entity(res).build();
 
@@ -248,12 +248,13 @@ public class PrivacyControlService extends RESTService {
 						String consentLevels = getConsentLevelsFormatted();
 
 						StringBuilder storageStringBuilder = new StringBuilder();
-						storageStringBuilder.append("Hier kannst Du festlegen, welche Deiner Daten aus welchem System gesammelt und analysiert werden duerfen. \n");
+						storageStringBuilder.append("Hier kannst du festlegen, welche deiner Daten aus welchem System gesammelt und analysiert werden duerfen. \n");
 						storageStringBuilder.append("'Services' bezeichnet die Systeme, in denen die Daten erfasst werden (z.B. Moodle). \n");
-						storageStringBuilder.append("'Aktionen' bestimmt die Art der Daten (z.B. 'completed' fuer ein abgeschlossenes Quiz oder 'posted' fuer einen verfassten Forumseintrag). \n");
+						storageStringBuilder.append("'Aktionen' bestimmt die Art der Daten (z.B. 'completed' fuer ein abgeschlossenes Quiz oder 'posted' fuer einen verfassten Forumseintrag). \n \n");
 						storageStringBuilder.append("Dazu hast Du folgende Optionen: \n");
 						storageStringBuilder.append(consentLevels);
-						storageStringBuilder.append("Bitte gib die Nummern der Optionen an, mit denen Du einverstanden bist (bei mehreren: '1,2')");
+						storageStringBuilder.append("Bitte gib die Nummern der Optionen an, mit denen du einverstanden bist. \n");
+						storageStringBuilder.append("Wenn du mehreren Optionen zustimmen moechtest, dann kannst du die Nummern mit Komma trennen (z.B. '1,2')");
 						
 						res = new JSONObject();
 						res.put("text", storageStringBuilder.toString());
@@ -266,16 +267,17 @@ public class PrivacyControlService extends RESTService {
 							givenConsent = getConsentLevelsForLoginName(agent.getLoginName());
 							StringBuilder stringBuilder = new StringBuilder();
 							if (givenConsent == null || givenConsent.isEmpty()) {
-								stringBuilder.append("Aktuell liegt keine Einwilligung von Dir vor.");
+								stringBuilder.append("Aktuell liegt keine Einwilligung von dir vor.");
 							} else {
-								stringBuilder.append("Du hast Deine Einwilligungen zu folgenden Optionen gegeben: \n");
+								stringBuilder.append("Du hast deine Einwilligungen zu folgenden Optionen gegeben: \n");
 								for (BigInteger consent : givenConsent) {
 									stringBuilder.append(consentLevelMap.get(consent.intValue()).toString());
 									stringBuilder.append("\n");
 								}
 							}
 							
-							stringBuilder.append("\n Melde Dich, falls ich noch etwas fuer Dich tun kann.");
+							stringBuilder.append("\n");
+							stringBuilder.append("Melde dich, falls ich noch etwas fuer dich tun kann.");
 
 							res = new JSONObject();
 							res.put("text", stringBuilder.toString());
@@ -292,7 +294,7 @@ public class PrivacyControlService extends RESTService {
 							revokeUserConsent(agent.getLoginName());
 
 							res = new JSONObject();
-							res.put("text", "Deine Einstellungen wurden angepasst. \n Melde Dich, falls ich noch etwas fuer Dich tun kann.");
+							res.put("text", "Deine Einstellungen wurden angepasst. \n" + "Melde dich, falls ich noch etwas fuer dich tun kann.");
 							res.put("closeContext", "true");
 							return Response.ok().entity(res).build();
 						} catch (EthereumException e) {
@@ -306,22 +308,23 @@ public class PrivacyControlService extends RESTService {
 
 				} catch (NumberFormatException e) {
 					JSONObject err = new JSONObject();
-					err.put("text", "Bitte gib eine der Ziffern ein, um eine Funktion zu nutzen oder '0' zum Abbrechen.");
+					err.put("text", "Bitte gib eine der Nummern ein, um eine Funktion zu nutzen oder '0' zum Abbrechen.");
 					err.put("closeContext", "false");
 					return Response.ok().entity(err).build();
 				}
 			} else {
 				choosingFunction.add(channel);
-				String greeting = 
-						"Hallo, ich kann folgendes fuer dich tun: \n" 
-								+ "[1] Einwilligung zur Datenverarbeitung abgeben. \n"
-								+ "[2] Einwilligung zur Datenverarbeitung anzeigen. \n"
-								+ "[3] Einwilligung zur Datenverarbeitung widerrufen. \n"
-								+ "[0] Abbrechen. \n"
-								+ "Um eine Funktion zu nutzen, gib die entsprechende Nummer ein.";
+				StringBuilder menuBuilder = new StringBuilder();
+				menuBuilder.append("Hallo, ich kann folgendes fuer dich tun: \n");
+				menuBuilder.append("[1] Einwilligung zur Datenverarbeitung abgeben. \n");
+				menuBuilder.append("[2] Einwilligung zur Datenverarbeitung anzeigen. \n");
+				menuBuilder.append("[3] Einwilligung zur Datenverarbeitung widerrufen. \n");
+				menuBuilder.append("[0] Abbrechen. \n");
+				menuBuilder.append("Um eine Funktion zu nutzen, gib die entsprechende Nummer ein. \n \n");
+				menuBuilder.append("Wenn du in Zukunft direkt zu dieser Ansicht springen moechtest, dann schreibe mich an mit: 'Optionen'");
 
 				JSONObject res = new JSONObject();
-				res.put("text", greeting);
+				res.put("text", menuBuilder.toString());
 				res.put("closeContext", "false");
 				return Response.ok().entity(res).build();
 			}
@@ -343,16 +346,28 @@ public class PrivacyControlService extends RESTService {
 	@ApiResponses(
 			value = { @ApiResponse(
 					code = HttpURLConnection.HTTP_OK,
-					message = "Delivered greeting.") })
+					message = "Delivered service information text.") })
 	public Response showServiceInformation(String body) {
-		logger.info("Greeting user...");
-		JSONParser parser = new JSONParser(JSONParser.MODE_PERMISSIVE);
+		logger.info("Showing service information...");
 		StringBuilder resBuilder = new StringBuilder();
 		
-		// TODO Insert info text about the service and its function.
 		resBuilder.append("Hi, \n");
-		resBuilder.append("ich helfe Dir dabei, mehr Transparenz und Kontrolle in Bezug auf Deine persoenlichen Daten aus der Lernumgebung zu erhalten. \n");
-		resBuilder.append("Moechtest Du dazu weitere Informationen erhalten?");
+		resBuilder.append("du bist hier, weil einer deiner Kurse mit Learning Analytics analysiert wird. \n");
+		resBuilder.append("Das bedeutet, wenn du Funktionen im Kursraum (z.B. im Moodle) nutzt, werden dabei Daten erzeugt. ");
+		resBuilder.append("Zum Beispiel wird erfasst, wenn du ein Quiz abschliesst, eine Note bekommst, in ein Forum postest oder dir Material ansiehst. ");
+		resBuilder.append("Diese Daten werden dann analysiert, z.B. um dir persoenliches Feedback zu deinem Lernprozess zu geben. \n" );
+		resBuilder.append("Ich kann dir dabei helfen, mehr Kontrolle ueber deine persoenlichen Daten aus der Lernumgebung zu erhalten. \n \n");
+		resBuilder.append("Erstens kannst du hier festlegen, welche Daten aus der Lernumgebung (Moodle) zur Analyse weiter gesendet werden. \n");
+		resBuilder.append("Du legst dabei fest aus welchen Systemen, welche Art von Daten verwendet werden duerfen. \n");
+		resBuilder.append("Denk daran, dass es natuerlich die Qualitaet deines Feedbacks beeinflusst, wenn weniger aussagekraeftige Daten ueber dich vorliegen. \n");
+		resBuilder.append("Wenn du es dir spaeter anders ueberlegst, kannst du hier die Zustimmung jederzeit wieder aendern. \n");
+		resBuilder.append("Schreib mich dazu an mit: 'Optionen'\n \n");
+		resBuilder.append("Zweitens kannst du dir die ueber dich gesammelten Daten anzeigen lassen. \n");
+		resBuilder.append("Dabei werden dir alle Daten zu deiner Person angezeigt, die aus der Lernumgebung entnommen und zur Analyse abgspeichert wurden. \n");
+		resBuilder.append("Bei jeder Entnahme deiner Daten aus der Lernumgebung wird eine Referenz dazu auf einer Blockchain abgelegt. ");
+	    resBuilder.append("Beim Anzeigen deiner Daten vergleiche ich diese mit der Blockchain-Referenz, sodass du sehen kannst, ob der Datensatz manipuliert worden ist. ");
+		resBuilder.append("Selbstverstaendlich werden zur Analyse nur verifizierte (nicht manipulierte) Daten verwendet. \n");
+		resBuilder.append("Schreib mich dazu an mit: 'Daten'\n \n");
 
 		JSONObject res = new JSONObject();
 		res.put("text", resBuilder.toString());
@@ -371,17 +386,20 @@ public class PrivacyControlService extends RESTService {
 		logger.info("Data requested...");
 		JSONParser parser = new JSONParser(JSONParser.MODE_PERMISSIVE);
 		StringBuilder resBuilder = new StringBuilder();
-
+		resBuilder.append("Unten siehst du die gespeicherten Daten zu deiner Person. \n");
+		resBuilder.append("Jeder Datensatz entspricht einer deiner Aktionen in der Lernumgebung (Moodle). Nicht-verifizierte Daten wurden ggf. manipuliert und werden deshalb nicht weiter verwendet. \n \n");
+		
 		try {
 			JSONObject bodyObj = (JSONObject) parser.parse(body);
 			resBuilder.append(getStatementsForUserEmail(bodyObj.getAsString("email")));
 		} catch (ParseException e) {
 			e.printStackTrace();
-			resBuilder.append("Leider ist bei Deiner Anfrage etwas schief gegangen.");
+			resBuilder.append("Leider ist bei deiner Anfrage etwas schief gegangen.");
 		} 
 		
 		resBuilder.append("\n");
-		resBuilder.append("Melde Dich, falls ich noch etwas fuer Dich tun kann.");
+		resBuilder.append("Wenn du in Zukunft direkt zu dieser Ansicht springen moechtest, dann schreibe mich an mit: 'Daten' \n");
+		resBuilder.append("Melde dich, falls ich noch etwas fuer dich tun kann.");
 
 		JSONObject res = new JSONObject();
 		res.put("text", resBuilder.toString());
@@ -631,11 +649,12 @@ public class PrivacyControlService extends RESTService {
 
 		JSONParser parser = new JSONParser(JSONParser.MODE_PERMISSIVE);
 		StringBuilder resBuilder = new StringBuilder();
-		resBuilder.append("Folgende Learning Analytics Daten liegen zu Dir vor: \n \n");
 
 		try {
 			JSONObject obj = (JSONObject) parser.parse(statementsRaw);
 			JSONArray statements = (JSONArray) obj.get("statements");
+			
+			int verifiedStatements = 0;
 
 			for (int i = 0; i < statements.size(); i++) {
 				JSONObject statement = (JSONObject) statements.get(i);
@@ -658,12 +677,19 @@ public class PrivacyControlService extends RESTService {
 					stringBuilder.append(object);
 					stringBuilder.append("\n");
 					if (isVerified) {
+						verifiedStatements++;
 						stringBuilder.append("Blockchain-verifizierter Datensatz \n");			
 					} else {
 						stringBuilder.append("Datensatz nicht verifiziert \n");
 					}
 
 					resBuilder.append(stringBuilder.toString());
+					resBuilder.append("\n");
+					resBuilder.append("Anzahl Datensaetze: ");
+					resBuilder.append(statements.size());
+					resBuilder.append("\n");
+					resBuilder.append("Davon Blockchain-verifiziert: ");
+					resBuilder.append(verifiedStatements);
 					resBuilder.append("\n");
 				}
 			}
