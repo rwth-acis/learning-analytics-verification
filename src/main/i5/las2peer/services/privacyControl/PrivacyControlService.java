@@ -87,7 +87,6 @@ public class PrivacyControlService extends RESTService {
 
 	private static ConcurrentMap<String, String> userToMoodleToken = new ConcurrentHashMap<>();
 
-	private static EthereumNode node;
 	private static ReadWriteRegistryClient registryClient;
 
 	private static VerificationRegistry verificationRegistry;
@@ -149,8 +148,7 @@ public class PrivacyControlService extends RESTService {
 		// Deploy smart contracts from wrapper classes
 		try {
 			ServiceAgentImpl agent = (ServiceAgentImpl) Context.getCurrent().getServiceAgent();
-			node = (EthereumNode) agent.getRunningAtNode();
-			registryClient = node.getRegistryClient();
+			registryClient = ((EthereumNode) agent.getRunningAtNode()).getRegistryClient();
 
 			consentRegistry = deployConsentRegistry();
 			verificationRegistry = deployVerificationRegistry();
@@ -552,9 +550,6 @@ public class PrivacyControlService extends RESTService {
 
 		UserAgentImpl agent = getAgentFromUserEmail(email);
 		if (agent != null) {
-			ServiceAgentImpl callingAgent = (ServiceAgentImpl) ExecutionContext.getCurrent().getCallerContext().getMainAgent();
-			String callingAgentName = callingAgent.getServiceNameVersion().getSimpleClassName().toLowerCase();
-
 			String timestamp = statement.getAsString("timestamp");
 			String verb = ((JSONObject) ((JSONObject) statement.get("verb")).get("display")).getAsString("en-US");
 			String object = ((JSONObject) ((JSONObject) ((JSONObject) statement.get("object")).get("definition")).get("name")).getAsString("en-US");
@@ -734,16 +729,13 @@ public class PrivacyControlService extends RESTService {
 
 		UserAgentImpl agent = null;
 		try {
-			String agentId = node.getAgentIdForEmail(userEmail);
-			agent = (UserAgentImpl) node.getAgent(agentId);
+			String agentId = Context.get().getUserAgentIdentifierByEmail(userEmail);
+			agent = (UserAgentImpl) Context.get().fetchAgent(agentId);
 		} catch (AgentNotFoundException e) {
 			logger.warning("Agent not found.");
 			e.printStackTrace();
 		} catch (AgentOperationFailedException e) {
 			logger.warning("Agent operation failed.");
-			e.printStackTrace();
-		} catch (AgentException e) {
-			logger.warning("Something else went wrong.");
 			e.printStackTrace();
 		}
 		return agent;
