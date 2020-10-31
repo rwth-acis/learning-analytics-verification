@@ -180,17 +180,16 @@ public class PrivacyControlService extends RESTService {
 			channel = bodyObj.getAsString("channel");
 			String email = bodyObj.getAsString("email");
 
-			UserAgentImpl agent = getAgentFromUserEmail(email);
-			if (agent == null) {
+			if (email == null || email.isEmpty()) {
 				JSONObject err = new JSONObject();
-				err.put("text", "Zu deiner Email ist kein las2peer User registriert. Bitte registriere dich um diesen Service zu nutzen.");
+				err.put("text", "Leider wurde keine Emailadresse uebermittelt. Bitte registriere dich um diesen Service zu nutzen.");
 				err.put("closeContext", "true");
 				return Response.ok().entity(err).build();
 			}
 
 			if (consentProcessing.contains(channel)) {
 				// Proceed with storage
-				logger.info("Continuing consent storage for user " + agent.getLoginName());
+				logger.info("Continuing consent storage for user " + email);
 
 				// Get consent level from message
 				String chosenConsentLevels = bodyObj.getAsString("msg").split("\\.")[0];
@@ -203,7 +202,7 @@ public class PrivacyControlService extends RESTService {
 						}
 						levels.add(new BigInteger(s));
 					}
-					storeUserConsentLevels(agent.getLoginName(), levels);
+					storeUserConsentLevels(email, levels);
 					consentProcessing.remove(channel);
 
 					// Build response and close context.
@@ -241,7 +240,7 @@ public class PrivacyControlService extends RESTService {
 						return Response.ok().entity(res).build();
 
 					case 1: // storeConsent(body);
-						logger.info("Starting consent storage for user " + agent.getLoginName());
+						logger.info("Starting consent storage for user " + email);
 						consentProcessing.add(channel);
 						String consentLevels = getConsentLevelsFormatted();
 
@@ -262,7 +261,7 @@ public class PrivacyControlService extends RESTService {
 					case 2: // showConsent(body);
 						List<BigInteger> givenConsent;
 						try {
-							givenConsent = getConsentLevelsForLoginName(agent.getLoginName());
+							givenConsent = getConsentLevelsForUserEmail(email);
 							StringBuilder stringBuilder = new StringBuilder();
 							if (givenConsent == null || givenConsent.isEmpty()) {
 								stringBuilder.append("Aktuell liegt keine Einwilligung von dir vor.");
@@ -287,9 +286,9 @@ public class PrivacyControlService extends RESTService {
 						break;
 
 					case 3: // revokeConsent(body);
-						logger.info("Revoking consent for user " + agent.getLoginName());
+						logger.info("Revoking consent for user " + email);
 						try {
-							revokeUserConsent(agent.getLoginName());
+							revokeUserConsent(email);
 
 							res = new JSONObject();
 							res.put("text", "Deine Einstellungen wurden angepasst. \n" + "Melde dich, falls ich noch etwas fuer dich tun kann.");
@@ -425,32 +424,29 @@ public class PrivacyControlService extends RESTService {
 	 * @throws EthereumException 
 	 * @returns boolean True/false based on user consent.
 	 */
-	public boolean checkUserConsent(String userEmail, String action) throws EthereumException {
-		UserAgentImpl agent = getAgentFromUserEmail(userEmail);
-		if (agent != null) {
-			// Get calling service from execution context
-			ServiceAgentImpl callingAgent = (ServiceAgentImpl) ExecutionContext.getCurrent().getCallerContext().getMainAgent();
-			String callingAgentName = callingAgent.getServiceNameVersion().getSimpleClassName().toLowerCase();
+	public boolean checkUserConsent(String email, String action) throws EthereumException {
+		// Get calling service from execution context
+		ServiceAgentImpl callingAgent = (ServiceAgentImpl) ExecutionContext.getCurrent().getCallerContext().getMainAgent();
+		String callingAgentName = callingAgent.getServiceNameVersion().getSimpleClassName().toLowerCase();
 
-			for (BigInteger level : getConsentLevelsForLoginName(agent.getLoginName())) {
-				ConsentLevel consent = consentLevelMap.get(level.intValue());
+		for (BigInteger level : getConsentLevelsForUserEmail(email)) {
+			ConsentLevel consent = consentLevelMap.get(level.intValue());
 
-				for (String service : consent.getServices()) {
-					if (callingAgentName.contains(service.toLowerCase())) {
+			for (String service : consent.getServices()) {
+				if (callingAgentName.contains(service.toLowerCase())) {
 
-						// Check in functions if an action is transmitted.
-						if (!action.isEmpty()) {
-							for (String function : consent.getFunctions()) {
-								if (function.toLowerCase().contains(action.toLowerCase())) {
-									return true;
-								}
+					// Check in functions if an action is transmitted.
+					if (!action.isEmpty()) {
+						for (String function : consent.getFunctions()) {
+							if (function.toLowerCase().contains(action.toLowerCase())) {
+								return true;
 							}
 						}
 					}
 				}
 			}
-			// TODO Create log entries for failed extraction attempts?
 		}
+		// TODO Create log entries for failed extraction attempts?
 		return false;
 	}
 
@@ -461,12 +457,13 @@ public class PrivacyControlService extends RESTService {
 	 * @param BigInteger necessary level of consent (as defined in config file)
 	 * @throws EthereumException
 	 */
-	public void storeUserConsentLevels(String userName, List<BigInteger> consentLevels) throws EthereumException {
+	public void storeUserConsentLevels(String email, List<BigInteger> consentLevels) throws EthereumException {
+		byte[] emailHash = Util.soliditySha3(email); 
 		try {
-			consentRegistry.storeConsent(Util.padAndConvertString(userName, 32), consentLevels).sendAsync().get();
-			if (consentCache.containsKey(userName)) {				
+			consentRegistry.storeConsent(emailHash, consentLevels).sendAsync().get();
+			if (consentCache.containsKey(email)) {				
 				logger.info("Resetting consent cache.");
-				consentCache.remove(userName);
+				consentCache.remove(email);
 			}
 		} catch (IllegalArgumentException e) {
 			throw new IllegalArgumentException("One of the parameters used for setting the user consent is invalid.", e);
@@ -481,12 +478,13 @@ public class PrivacyControlService extends RESTService {
 	 * @param User (represented by login name) to revoke consent for.
 	 * @throws EthereumException
 	 */
-	public void revokeUserConsent(String userName) throws EthereumException {
+	public void revokeUserConsent(String email) throws EthereumException {
+		byte[] emailHash = Util.soliditySha3(email); 
 		try {
-			consentRegistry.revokeConsent(Util.padAndConvertString(userName, 32)).sendAsync().get();
-			if (consentCache.containsKey(userName)) {				
+			consentRegistry.revokeConsent(emailHash).sendAsync().get();
+			if (consentCache.containsKey(email)) {				
 				logger.info("Resetting consent cache.");
-				consentCache.remove(userName);
+				consentCache.remove(email);
 			}
 		} catch (IllegalArgumentException e) {
 			throw new IllegalArgumentException("One of the parameters used for revoking the user consent is invalid.", e);
@@ -503,17 +501,19 @@ public class PrivacyControlService extends RESTService {
 	 * @throws EthereumException
 	 */
 	@SuppressWarnings("unchecked")
-	public List<BigInteger> getConsentLevelsForLoginName(String userName) throws EthereumException {
-		if (consentCache.containsKey(userName)) {
+	public List<BigInteger> getConsentLevelsForUserEmail(String email) throws EthereumException {
+		if (consentCache.containsKey(email)) {
 			logger.info("Loading consent from cache.");
-			return consentCache.get(userName);
+			return consentCache.get(email);
 		}
 
+		byte[] emailHash = Util.soliditySha3(email); 
+		
 		// Try to get information from the blockchain and return.
 		List<BigInteger> consentLevels;
 		try {
-			consentLevels = consentRegistry.getUserConsentLevels(Util.padAndConvertString(userName, 32)).sendAsync().get();
-			consentCache.put(userName, consentLevels);
+			consentLevels = consentRegistry.getUserConsentLevels(emailHash).sendAsync().get();
+			consentCache.put(email, consentLevels);
 		} catch (Exception e) {
 			throw new EthereumException("No consent registered.", e);
 		}
@@ -547,68 +547,30 @@ public class PrivacyControlService extends RESTService {
 			throw new EthereumException(e);
 		}
 		String email = ((JSONObject) ((JSONObject) statement.get("actor")).get("account")).getAsString("name");
+		String timestamp = statement.getAsString("timestamp");
+		String verb = ((JSONObject) ((JSONObject) statement.get("verb")).get("display")).getAsString("en-US");
+		String object = ((JSONObject) ((JSONObject) ((JSONObject) statement.get("object")).get("definition")).get("name")).getAsString("en-US");
 
-		UserAgentImpl agent = getAgentFromUserEmail(email);
-		if (agent != null) {
-			String timestamp = statement.getAsString("timestamp");
-			String verb = ((JSONObject) ((JSONObject) statement.get("verb")).get("display")).getAsString("en-US");
-			String object = ((JSONObject) ((JSONObject) ((JSONObject) statement.get("object")).get("definition")).get("name")).getAsString("en-US");
+		StringBuilder stringBuilder = new StringBuilder();
+		stringBuilder.append(timestamp);
+		stringBuilder.append(email);
+		stringBuilder.append(verb);
+		stringBuilder.append(object);
 
-			StringBuilder stringBuilder = new StringBuilder();
-			stringBuilder.append(timestamp);
-			stringBuilder.append(email);
-			stringBuilder.append(verb);
-			stringBuilder.append(object);
+		// Create hash to store on chain
+		byte[] hash = Util.soliditySha3(stringBuilder.toString());
+		byte[] emailHash = Util.soliditySha3(email); 
 
-			// Create hash to store on chain
-			byte[] hash = Util.soliditySha3(stringBuilder.toString());
-
-			try {
-				verificationRegistry.createLogEntry(Util.padAndConvertString(agent.getLoginName(), 32), hash).sendAsync().get();
-			} catch (Exception e) {
-				throw new EthereumException(e);
-			}
+		try {
+			verificationRegistry.createLogEntry(emailHash, hash).sendAsync().get();
+		} catch (Exception e) {
+			throw new EthereumException(e);
 		}
 
 		// TODO Change this for production use.
 		// Store token for lookup.
 		String token = xApiStatement.split("\\*")[1];
 		userToMoodleToken.put(email, token);
-	}
-
-	@SuppressWarnings("deprecation")
-	public String getLogEntries(String userName) throws EthereumException {
-		Tuple2<List<BigInteger>, List<byte[]>> initialResult;
-		StringBuilder resBuilder = new StringBuilder();
-		try {
-			initialResult = verificationRegistry.getLogEntries(Util.padAndConvertString(userName, 32)).send();
-
-			List<BigInteger> timestamps = initialResult.getValue1();
-			List<byte[]> hashes = initialResult.getValue2();
-
-			List<LogEntry> logs = new ArrayList<LogEntry>();
-
-			for (int i = 0; i < timestamps.size(); i++) {
-				logger.warning("Found logentry with index " + i);
-				LocalDateTime date = LocalDateTime.ofInstant(Instant.ofEpochSecond(timestamps.get(i).longValue()),
-						TimeZone.getDefault().toZoneId());
-				LogEntry entry = new LogEntry(date, null, null, Util.bytesToHexString(hashes.get(i)));
-				logs.add(entry);
-			}
-
-			if (logs.isEmpty()) {
-				resBuilder.append("Derzeit liegen keine geloggten Datenzugriffe zu deinem Account vor.");
-			} else {
-				resBuilder.append("Es wurden folgende Datenzugriffe geloggt: \n\n");
-				for (LogEntry l : logs) {
-					resBuilder.append(l.toString());
-				}				
-			}
-		} catch (Exception e) {
-			e.printStackTrace();
-			throw new EthereumException(e);
-		}
-		return resBuilder.toString();
 	}
 
 	@SuppressWarnings("unchecked")
@@ -709,6 +671,7 @@ public class PrivacyControlService extends RESTService {
 		if (toHash.isEmpty()) {
 			return result;
 		}
+		
 		byte[] hash = Util.soliditySha3(toHash);
 
 		try {
@@ -722,25 +685,6 @@ public class PrivacyControlService extends RESTService {
 	}
 
 	// --------------------------- Utility  ----------------------------
-
-	private UserAgentImpl getAgentFromUserEmail(String userEmail) {
-		if (userEmail == null || userEmail.isEmpty()) {
-			return null;
-		}
-
-		UserAgentImpl agent = null;
-		try {
-			String agentId = Context.get().getUserAgentIdentifierByEmail(userEmail);
-			agent = (UserAgentImpl) Context.get().fetchAgent(agentId);
-		} catch (AgentNotFoundException e) {
-			logger.warning("Agent not found.");
-			e.printStackTrace();
-		} catch (AgentOperationFailedException e) {
-			logger.warning("Agent operation failed.");
-			e.printStackTrace();
-		}
-		return agent;
-	}
 
 	private String getConsentLevelsFormatted() {
 		StringBuilder stringBuilder = new StringBuilder();
