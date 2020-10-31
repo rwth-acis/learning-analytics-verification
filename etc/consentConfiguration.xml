@@ -1,6 +1,6 @@
 <las2peer:consent>
 	<consentLevel>
-		<name>Basic Moodle Data</name>
+		<name>Moodle Assignment Data</name>
 		<level>1</level>
 		<functions>
 			<function>completed</function>

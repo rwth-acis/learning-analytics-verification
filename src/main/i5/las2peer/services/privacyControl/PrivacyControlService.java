@@ -628,16 +628,16 @@ public class PrivacyControlService extends RESTService {
 					
 					StringBuilder stringBuilder = new StringBuilder();
 					stringBuilder.append(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm").format(time));
-					stringBuilder.append("  ");
+					stringBuilder.append("   ");
 					stringBuilder.append(action);
 					stringBuilder.append(": ");
 					stringBuilder.append(object);
-					stringBuilder.append("\n");
+					stringBuilder.append("   ");
 					if (isVerified) {
 						verifiedStatements++;
-						stringBuilder.append("Blockchain-verifizierter Datensatz \n");			
+						stringBuilder.append("(Blockchain-verifizierter Datensatz) \n");			
 					} else {
-						stringBuilder.append("Datensatz nicht verifiziert \n");
+						stringBuilder.append("(Datensatz nicht verifiziert) \n");
 					}
 					resBuilder.append(stringBuilder.toString());
 				}
