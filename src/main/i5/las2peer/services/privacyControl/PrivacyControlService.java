@@ -361,7 +361,7 @@ public class PrivacyControlService extends RESTService {
 		resBuilder.append("Wenn du es dir spaeter anders ueberlegst, kannst du hier die Zustimmung jederzeit wieder aendern. \n");
 		resBuilder.append("Schreib mich dazu an mit: 'Optionen'\n \n");
 		resBuilder.append("Zweitens kannst du dir die ueber dich gesammelten Daten anzeigen lassen. \n");
-		resBuilder.append("Dabei werden dir alle Daten zu deiner Person angezeigt, die aus der Lernumgebung entnommen und zur Analyse abgspeichert wurden. \n");
+		resBuilder.append("Dabei werden dir alle Daten zu deiner Person angezeigt, die aus der Lernumgebung entnommen und zur Analyse abgespeichert wurden. \n");
 		resBuilder.append("Bei jeder Entnahme deiner Daten aus der Lernumgebung wird eine Referenz dazu auf einer Blockchain abgelegt. ");
 	    resBuilder.append("Beim Anzeigen deiner Daten vergleiche ich diese mit der Blockchain-Referenz, sodass du sehen kannst, ob der Datensatz manipuliert worden ist. ");
 		resBuilder.append("Selbstverstaendlich werden zur Analyse nur verifizierte (nicht manipulierte) Daten verwendet. \n");
@@ -677,22 +677,23 @@ public class PrivacyControlService extends RESTService {
 					} else {
 						stringBuilder.append("Datensatz nicht verifiziert \n");
 					}
-
 					resBuilder.append(stringBuilder.toString());
-					resBuilder.append("\n");
-					resBuilder.append("Anzahl Datensaetze: ");
-					resBuilder.append(statements.size());
-					resBuilder.append("\n");
-					resBuilder.append("Davon Blockchain-verifiziert: ");
-					resBuilder.append(verifiedStatements);
-					resBuilder.append("\n");
 				}
 			}
+			resBuilder.append("\n");
+			resBuilder.append("Anzahl Datensaetze: ");
+			resBuilder.append(statements.size());
+			resBuilder.append("\n");
+			resBuilder.append("Davon Blockchain-verifiziert: ");
+			resBuilder.append(verifiedStatements);
+			resBuilder.append("\n");
+			
 		} catch (ParseException e) {
 			e.printStackTrace();
 		} catch (EthereumException e) {
 			e.printStackTrace();
 		}
+		
 		return resBuilder.toString();
 	}
 
