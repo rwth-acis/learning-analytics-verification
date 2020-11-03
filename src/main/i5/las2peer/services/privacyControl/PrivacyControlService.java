@@ -85,8 +85,6 @@ public class PrivacyControlService extends RESTService {
 
 	private final static String DEFAULT_CONFIG_FILE = "etc/consentConfiguration.xml";
 
-	private static ConcurrentMap<String, String> userToMoodleToken = new ConcurrentHashMap<>();
-
 	private static ReadWriteRegistryClient registryClient;
 
 	private static VerificationRegistry verificationRegistry;
@@ -96,10 +94,12 @@ public class PrivacyControlService extends RESTService {
 	private static String consentRegistryAddress;
 
 	private static HashMap<Integer, ConsentLevel> consentLevelMap = new HashMap<Integer, ConsentLevel>();
+	private static ConcurrentMap<String, List<BigInteger>> consentCache = new ConcurrentHashMap<>();
+	private static ConcurrentMap<String, String> userToMoodleToken = new ConcurrentHashMap<>();
+
 	private static HashSet<String> consentProcessing = new HashSet<String>();
 	private static HashSet<String> choosingFunction = new HashSet<String>();
-
-	private static ConcurrentMap<String, List<BigInteger>> consentCache = new ConcurrentHashMap<>();
+	private static HashSet<String> processingAction = new HashSet<String>();
 
 	private static boolean initialized = false;
 
@@ -187,7 +187,14 @@ public class PrivacyControlService extends RESTService {
 				return Response.ok().entity(err).build();
 			}
 
-			if (consentProcessing.contains(channel)) {
+			if (processingAction.contains(channel)) {
+				logger.info("Got message while processing...");
+				JSONObject res = new JSONObject();
+				res.put("text", "Bitte warte, bis die Aktion ausgefuehrt wurde.");
+				res.put("closeContext", "false");
+				return Response.ok().entity(res).build();
+				
+			} else if (consentProcessing.contains(channel)) {
 				// Proceed with storage
 				logger.info("Continuing consent storage for user " + email);
 
@@ -202,12 +209,15 @@ public class PrivacyControlService extends RESTService {
 						}
 						levels.add(new BigInteger(s));
 					}
-					storeUserConsentLevels(email, levels);
 					consentProcessing.remove(channel);
-
+					
+					processingAction.add(channel);
+					storeUserConsentLevels(email, levels);
+					processingAction.remove(channel);
+					
 					// Build response and close context.
 					JSONObject res = new JSONObject();
-					res.put("text", "Deine Einwilligung wurde erfolgreich gespeichert. \n" + "Melde dich, falls ich noch etwas fuer dich tun kann.");
+					res.put("text", "Deine Einwilligung wurde erfolgreich gespeichert.");
 					res.put("closeContext", "true");
 					return Response.ok().entity(res).build();
 
@@ -221,9 +231,8 @@ public class PrivacyControlService extends RESTService {
 					e.printStackTrace();
 				}
 				consentProcessing.remove(channel);
-			}
-
-			if (choosingFunction.contains(channel)) {
+				
+			} else if (choosingFunction.contains(channel)) {
 				// If options have been displayed, parse number and evaluate which function to execute.
 				String chosenOption = bodyObj.getAsString("msg").split("\\.")[0];
 				try {
@@ -288,10 +297,12 @@ public class PrivacyControlService extends RESTService {
 					case 3: // revokeConsent(body);
 						logger.info("Revoking consent for user " + email);
 						try {
+							processingAction.add(channel);
 							revokeUserConsent(email);
-
+							processingAction.remove(channel);
+							
 							res = new JSONObject();
-							res.put("text", "Deine Einstellungen wurden angepasst. \n" + "Melde dich, falls ich noch etwas fuer dich tun kann.");
+							res.put("text", "Deine Einstellungen wurden angepasst.");
 							res.put("closeContext", "true");
 							return Response.ok().entity(res).build();
 						} catch (EthereumException e) {
@@ -309,6 +320,7 @@ public class PrivacyControlService extends RESTService {
 					err.put("closeContext", "false");
 					return Response.ok().entity(err).build();
 				}
+				
 			} else {
 				choosingFunction.add(channel);
 				StringBuilder menuBuilder = new StringBuilder();
@@ -396,7 +408,6 @@ public class PrivacyControlService extends RESTService {
 		
 		resBuilder.append("\n");
 		resBuilder.append("Wenn du in Zukunft direkt zu dieser Ansicht springen moechtest, dann schreibe mich an mit: 'Daten' \n");
-		resBuilder.append("Melde dich, falls ich noch etwas fuer dich tun kann.");
 
 		JSONObject res = new JSONObject();
 		res.put("text", resBuilder.toString());
