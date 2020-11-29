@@ -1,4 +1,4 @@
-package i5.las2peer.services.privacyControl.TransactionLogging;
+package i5.las2peer.services.privacyControl.Verification;
 
 import java.math.BigInteger;
 import java.util.Arrays;

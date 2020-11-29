@@ -41,7 +41,7 @@ import i5.las2peer.security.ServiceAgentImpl;
 import i5.las2peer.serialization.XmlTools;
 import i5.las2peer.services.privacyControl.Consent.ConsentLevel;
 import i5.las2peer.services.privacyControl.Consent.ConsentRegistry;
-import i5.las2peer.services.privacyControl.TransactionLogging.VerificationRegistry;
+import i5.las2peer.services.privacyControl.Verification.VerificationRegistry;
 import i5.las2peer.tools.CryptoException;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiResponse;
