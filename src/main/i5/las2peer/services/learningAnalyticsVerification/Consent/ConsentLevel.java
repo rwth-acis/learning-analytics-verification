@@ -1,4 +1,4 @@
-package i5.las2peer.services.privacyControl.Consent;
+package i5.las2peer.services.learningAnalyticsVerification.Consent;
 
 import java.time.LocalDate;
 import java.util.ArrayList;

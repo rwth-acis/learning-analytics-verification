@@ -1,4 +1,4 @@
-package i5.las2peer.services.privacyControl;
+package i5.las2peer.services.learningAnalyticsVerification;
 
 import java.io.File;
 import java.math.BigInteger;
@@ -39,9 +39,9 @@ import i5.las2peer.restMapper.RESTService;
 import i5.las2peer.restMapper.annotations.ServicePath;
 import i5.las2peer.security.ServiceAgentImpl;
 import i5.las2peer.serialization.XmlTools;
-import i5.las2peer.services.privacyControl.Consent.ConsentLevel;
-import i5.las2peer.services.privacyControl.Consent.ConsentRegistry;
-import i5.las2peer.services.privacyControl.Verification.VerificationRegistry;
+import i5.las2peer.services.learningAnalyticsVerification.Consent.ConsentLevel;
+import i5.las2peer.services.learningAnalyticsVerification.Consent.ConsentRegistry;
+import i5.las2peer.services.learningAnalyticsVerification.Verification.VerificationRegistry;
 import i5.las2peer.tools.CryptoException;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiResponse;
@@ -55,26 +55,26 @@ import net.minidev.json.parser.JSONParser;
 import net.minidev.json.parser.ParseException;
 
 /**
- * Privacy Control Service
+ * Learning Analytics Verification Service
  * 
- * This is las2peer service that manages consent and personal data access restrictions,
- * as well as logging of data access for verification purposes.
+ * This is a las2peer service that manages consent and access restrictions to personal LA data,
+ * as well as the creation of references to LA data for verification purposes.
  * 
  */
 @Api
 @SwaggerDefinition(
 		info = @Info(
-				title = "Privacy Control Service",
-				version = "0.1.0",
+				title = "Learning Analytics Verification Service",
+				version = "1.0.0",
 				description = "Service for consent management and verification of learning analytics data.",
 				contact = @Contact(
 						name = "Lennart Bengtson",
 						url = "rwth-aachen.de",
 						email = "lennart.bengtson@rwth-aachen.de")))
-@ServicePath("/privacy")
-public class PrivacyControlService extends RESTService {
+@ServicePath("/verification")
+public class LearningAnalyticsVerificationService extends RESTService {
 
-	private final static L2pLogger logger = L2pLogger.getInstance(PrivacyControlService.class.getName());
+	private final static L2pLogger logger = L2pLogger.getInstance(LearningAnalyticsVerificationService.class.getName());
 
 	private final static String DEFAULT_CONFIG_FILE = "etc/consentConfiguration.xml";
 	private final static String DEFAULT_MESSAGES_DIR = "etc/messages";
@@ -101,7 +101,7 @@ public class PrivacyControlService extends RESTService {
 
 	// ------------------------------ Initialization -----------------------------
 
-	public PrivacyControlService() {
+	public LearningAnalyticsVerificationService() {
 	}
 
 	@POST
@@ -110,12 +110,12 @@ public class PrivacyControlService extends RESTService {
 	@ApiResponses(
 			value = { @ApiResponse(
 					code = HttpURLConnection.HTTP_OK,
-					message = "Privacy control service initialized") })
+					message = "LA Verification Service initialized") })
 	public Response init() {
 		if (initialized) {
 			return Response.status(Status.BAD_REQUEST).entity("Already initialized").build();
 		}
-		logger.info("Initializing privacy control service...");
+		logger.info("Initializing LA verification service...");
 		
 		try {
 			// Read texts from resourceBundle

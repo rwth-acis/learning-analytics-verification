@@ -1,4 +1,4 @@
-package i5.las2peer.services.privacyControl.Verification;
+package i5.las2peer.services.learningAnalyticsVerification.Verification;
 
 import java.math.BigInteger;
 import java.util.Arrays;

@@ -1,4 +1,4 @@
-package i5.las2peer.services.privacyControl;
+package i5.las2peer.services.learningAnalyticsVerification;
 
 import i5.las2peer.api.Configurable;
 

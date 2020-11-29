@@ -21,7 +21,7 @@ NODE_ID_SEED=${NODE_ID_SEED:-$RANDOM}
 ETH_PROPS_DIR=/app/etc/
 ETH_PROPS=i5.las2peer.registry.data.RegistryConfiguration.properties
 
-LA_ETH_PROPS_FILE='/app/etc/i5.las2peer.services.privacyControl.LaRegistryConfiguration.properties'
+LA_ETH_PROPS_FILE='/app/etc/i5.las2peer.services.learningAnalyticsVerification.LaRegistryConfiguration.properties'
 
 function waitForEndpoint {
     /app/wait-for-command/wait-for-command.sh -c "nc -z ${1} ${2:-80}" --time ${3:-10} --quiet
@@ -62,7 +62,7 @@ if [ -n "$LAS2PEER_ETH_HOST" ]; then
     echo done.
 fi
 
-export SERVICE_PROPERTY_FILE='/app/etc/i5.las2peer.services.privacyControl.PrivacyControlService.properties'
+export SERVICE_PROPERTY_FILE='/app/etc/i5.las2peer.services.learningAnalyticsVerification.LearningAnalyticsVerificationService.properties'
 
 if [ -n "$LAS2PEER_ETH_HOST" ]; then
 	echo Waiting for Ethereum client at $(host $LAS2PEER_ETH_HOST):$(port $LAS2PEER_ETH_HOST)...
