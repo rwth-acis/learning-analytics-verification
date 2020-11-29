@@ -3,6 +3,9 @@ package i5.las2peer.services.privacyControl;
 import java.io.File;
 import java.math.BigInteger;
 import java.net.HttpURLConnection;
+import java.net.JarURLConnection;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -12,10 +15,13 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.ResourceBundle;
 import java.util.Set;
 import java.util.TimeZone;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.jar.JarFile;
 
 import javax.ws.rs.Consumes;
 import javax.ws.rs.POST;
@@ -83,12 +89,15 @@ public class PrivacyControlService extends RESTService {
 	private final static L2pLogger logger = L2pLogger.getInstance(PrivacyControlService.class.getName());
 
 	private final static String DEFAULT_CONFIG_FILE = "etc/consentConfiguration.xml";
+	private final static String DEFAULT_MESSAGES_DIR = "etc/messages";
 
 	private static ReadWriteRegistryClient registryClient;
 
 	private static VerificationRegistry verificationRegistry;
 	private static String verificationRegistryAddress;
 
+	private static ResourceBundle userMessages;
+	
 	private static ConsentRegistry consentRegistry;
 	private static String consentRegistryAddress;
 
@@ -119,6 +128,17 @@ public class PrivacyControlService extends RESTService {
 			return Response.status(Status.BAD_REQUEST).entity("Already initialized").build();
 		}
 		logger.info("Initializing privacy control service...");
+		
+		try {
+			// Read texts from resourceBundle
+			File file = new File(DEFAULT_MESSAGES_DIR);
+	        URL[] urls = {file.toURI().toURL()};
+	        ClassLoader loader = new URLClassLoader(urls);
+	        userMessages = ResourceBundle.getBundle("UserMessages", Locale.getDefault(), loader);	
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+
 		// Read consent levels from configuration file.
 		try {
 			File xmlFile = new File(DEFAULT_CONFIG_FILE);
@@ -181,7 +201,7 @@ public class PrivacyControlService extends RESTService {
 
 			if (email == null || email.isEmpty()) {
 				JSONObject err = new JSONObject();
-				err.put("text", "Leider wurde keine Emailadresse uebermittelt. Bitte registriere dich um diesen Service zu nutzen.");
+				err.put("text", userMessages.getString("errEmailAdressNotFound"));
 				err.put("closeContext", "true");
 				return Response.ok().entity(err).build();
 			}
@@ -189,7 +209,7 @@ public class PrivacyControlService extends RESTService {
 			if (processingAction.contains(channel)) {
 				logger.info("Got message while processing...");
 				JSONObject res = new JSONObject();
-				res.put("text", "Bitte warte, bis die Aktion ausgefuehrt wurde.");
+				res.put("text", userMessages.getString("errWaitForActionToBeFinished"));
 				res.put("closeContext", "false");
 				return Response.ok().entity(res).build();
 				
@@ -216,14 +236,14 @@ public class PrivacyControlService extends RESTService {
 					
 					// Build response and close context.
 					JSONObject res = new JSONObject();
-					res.put("text", "Deine Einwilligung wurde erfolgreich gespeichert.");
+					res.put("text", userMessages.getString("confirmationConsentStorage"));
 					res.put("closeContext", "true");
 					return Response.ok().entity(res).build();
 
 				} catch (NumberFormatException e) {
 					// Build error but don't close context when ID is not valid.
 					JSONObject err = new JSONObject();
-					err.put("text", "Bitte gib eine oder mehrere gueltige Nummern ein.");
+					err.put("text", userMessages.getString("pleaseInsertValidID"));
 					err.put("closeContext", "false");
 					return Response.ok().entity(err).build();
 				} catch (EthereumException e) {
@@ -253,12 +273,9 @@ public class PrivacyControlService extends RESTService {
 						String consentLevels = getConsentLevelsFormatted();
 
 						StringBuilder storageStringBuilder = new StringBuilder();
-						storageStringBuilder.append("Hier kannst du festlegen, welche Art von Daten aus welchem System gespeichert und analysiert werden darf. \n \n");
+						storageStringBuilder.append(userMessages.getString("menuConsentOptionsExplanation"));
 						storageStringBuilder.append(consentLevels);
-						storageStringBuilder.append("'Services' bezeichnet die Systeme, in denen die Daten erfasst werden (z.B. Moodle). \n");
-						storageStringBuilder.append("'Aktionen' bestimmt die Art der Daten (z.B. 'completed' fuer ein abgeschlossenes Quiz). \n");
-						storageStringBuilder.append("Bitte gib die Nummern der Optionen an, mit denen du einverstanden bist. \n");
-						storageStringBuilder.append("Wenn du mehreren Optionen zustimmen moechtest, dann kannst du die Nummern mit Komma trennen (z.B. '1,2')");
+						storageStringBuilder.append(userMessages.getString("menuConsentOptionsPrompt"));
 						
 						res = new JSONObject();
 						res.put("text", storageStringBuilder.toString());
@@ -271,9 +288,9 @@ public class PrivacyControlService extends RESTService {
 							givenConsent = getConsentLevelsForUserEmail(email);
 							StringBuilder stringBuilder = new StringBuilder();
 							if (givenConsent == null || givenConsent.isEmpty()) {
-								stringBuilder.append("Aktuell liegt keine Einwilligung von dir vor.");
+								stringBuilder.append(userMessages.getString("noConsentForUserFound"));
 							} else {
-								stringBuilder.append("Folgende Einwilligungen liegen von dir vor: \n");
+								stringBuilder.append(userMessages.getString("followingConsentForUserFound"));
 								for (BigInteger consent : givenConsent) {
 									stringBuilder.append(consentLevelMap.get(consent.intValue()).toString());
 									stringBuilder.append("\n");
@@ -297,7 +314,7 @@ public class PrivacyControlService extends RESTService {
 							processingAction.remove(channel);
 							
 							res = new JSONObject();
-							res.put("text", "Deine Einstellungen wurden angepasst.");
+							res.put("text", userMessages.getString("confirmationPreferencesUpdated"));
 							res.put("closeContext", "true");
 							return Response.ok().entity(res).build();
 						} catch (EthereumException e) {
@@ -311,24 +328,15 @@ public class PrivacyControlService extends RESTService {
 
 				} catch (NumberFormatException e) {
 					JSONObject err = new JSONObject();
-					err.put("text", "Bitte gib eine der Nummern ein, um eine Funktion zu nutzen oder '0' zum Abbrechen.");
+					err.put("text", userMessages.getString("errChooseFunctionValidID"));
 					err.put("closeContext", "false");
 					return Response.ok().entity(err).build();
 				}
 				
 			} else {
 				choosingFunction.add(channel);
-				StringBuilder menuBuilder = new StringBuilder();
-				menuBuilder.append("Folgende Funktionen stehen dir zur Verfuegung: \n");
-				menuBuilder.append("[1] Einwilligung zur Datenverarbeitung abgeben. \n");
-				menuBuilder.append("[2] Einwilligung zur Datenverarbeitung anzeigen. \n");
-				menuBuilder.append("[3] Einwilligung zur Datenverarbeitung widerrufen. \n");
-				menuBuilder.append("[0] Abbrechen. \n");
-				menuBuilder.append("Um eine Funktion zu nutzen, gib die entsprechende Nummer ein. \n ");
-				menuBuilder.append("[optionen] bringt dich in Zukunft direkt zu dieser Ansicht.");
-
 				JSONObject res = new JSONObject();
-				res.put("text", menuBuilder.toString());
+				res.put("text", userMessages.getString("menuConsentManagementPrompt"));
 				res.put("closeContext", "false");
 				return Response.ok().entity(res).build();
 			}
@@ -340,7 +348,7 @@ public class PrivacyControlService extends RESTService {
 		processingAction.remove(channel);
 		
 		JSONObject res = new JSONObject();
-		res.put("text", "Etwas ist bei deiner Anfrage schiefgegangen.");
+		res.put("text", userMessages.getString("errSomethingWentWrong"));
 		res.put("closeContext", "true");
 		return Response.ok().entity(res).build();
 	}
@@ -393,15 +401,15 @@ public class PrivacyControlService extends RESTService {
 		StringBuilder resBuilder = new StringBuilder();
 		
 		try {
-			resBuilder.append("Folgende Daten sind zu deiner Person gespeichert: \n");
+			resBuilder.append(userMessages.getString("followingDataStoredForUser"));
 			JSONObject bodyObj = (JSONObject) parser.parse(body);
 			resBuilder.append(getStatementsForUserEmail(bodyObj.getAsString("email")));
-			resBuilder.append("Nicht-verifizierte Daten wurden ggf. manipuliert und werden deshalb nicht weiter verwendet. \n");
+			resBuilder.append(userMessages.getString("unverifiedDataNotUsed"));
 			resBuilder.append("\n");
-			resBuilder.append("[daten] bringt dich in Zukunft direkt zu dieser Ansicht.");
+			resBuilder.append(userMessages.getString("menuDataDisplayCommand"));
 		} catch (ParseException e) {
 			e.printStackTrace();
-			resBuilder.append("Leider ist bei deiner Anfrage etwas schief gegangen.");
+			resBuilder.append(userMessages.getString("errSomethingWentWrong"));
 		} 
 		
 
@@ -608,7 +616,7 @@ public class PrivacyControlService extends RESTService {
 		try {
 			statementsRaw = (String) Context.get().invoke("i5.las2peer.services.learningLockerService.LearningLockerService@1.0.0", "getStatementsFromLRS", token);
 		} catch (Exception e) {
-			return "Es liegen keine Daten zu deiner Person vor.";
+			return userMessages.getString("errNoDataFound");
 		}
 
 		JSONParser parser = new JSONParser(JSONParser.MODE_PERMISSIVE);
@@ -642,18 +650,18 @@ public class PrivacyControlService extends RESTService {
 					stringBuilder.append("   ");
 					if (isVerified) {
 						verifiedStatements++;
-						stringBuilder.append("(Blockchain-verifizierter Datensatz) \n");			
+						stringBuilder.append(userMessages.getString("dataVerified"));			
 					} else {
-						stringBuilder.append("(Datensatz nicht verifiziert) \n");
+						stringBuilder.append(userMessages.getString("dataUnverified"));
 					}
 					resBuilder.append(stringBuilder.toString());
 				}
 			}
 			resBuilder.append("\n");
-			resBuilder.append("Anzahl Datensaetze: ");
+			resBuilder.append(userMessages.getString("dataCount"));
 			resBuilder.append(statements.size());
 			resBuilder.append("\n");
-			resBuilder.append("Davon Blockchain-verifiziert: ");
+			resBuilder.append(userMessages.getString("dataCountVerified"));
 			resBuilder.append(verifiedStatements);
 			resBuilder.append("\n");
 			
