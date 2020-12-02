@@ -124,7 +124,9 @@ public class LearningAnalyticsVerificationService extends RESTService {
 	        ClassLoader loader = new URLClassLoader(urls);
 	        userMessages = ResourceBundle.getBundle("UserMessages", Locale.getDefault(), loader);	
 		} catch (Exception e) {
+			logger.warning("Unable to read messages from property file. Please make sure the file exists and is correctly formatted.");
 			e.printStackTrace();
+			return Response.status(Status.BAD_REQUEST).entity("Unable to read user messages from property file").build();
 		}
 
 		// Read consent levels from configuration file.
@@ -195,6 +197,7 @@ public class LearningAnalyticsVerificationService extends RESTService {
 			}
 
 			if (processingAction.contains(channel)) {
+				// Received message while processing. Ignore and print reminder for wait time.
 				logger.info("Got message while processing...");
 				JSONObject res = new JSONObject();
 				res.put("text", userMessages.getString("errWaitForActionToBeFinished"));
@@ -255,7 +258,7 @@ public class LearningAnalyticsVerificationService extends RESTService {
 						res.put("closeContext", "true");
 						return Response.ok().entity(res).build();
 
-					case 1: // storeConsent(body);
+					case 1: // consent storage;
 						logger.info("Starting consent storage for user " + email);
 						consentProcessing.add(channel);
 						String consentLevels = getConsentLevelsFormatted();
@@ -270,7 +273,7 @@ public class LearningAnalyticsVerificationService extends RESTService {
 						res.put("closeContext", "false");
 						return Response.ok().entity(res).build();
 
-					case 2: // showConsent(body);
+					case 2: // consent display
 						List<BigInteger> givenConsent;
 						try {
 							givenConsent = getConsentLevelsForUserEmail(email);
@@ -294,7 +297,7 @@ public class LearningAnalyticsVerificationService extends RESTService {
 						}
 						break;
 
-					case 3: // revokeConsent(body);
+					case 3: // consent revocation
 						logger.info("Revoking consent for user " + email);
 						try {
 							processingAction.add(channel);
@@ -352,23 +355,7 @@ public class LearningAnalyticsVerificationService extends RESTService {
 		logger.info("Showing service information...");
 		StringBuilder resBuilder = new StringBuilder();
 		
-		resBuilder.append("Hi, \n");
-		resBuilder.append("du bist hier, weil einer deiner Kurse mit Learning Analytics analysiert wird. \n");
-		resBuilder.append("Das bedeutet, wenn du Funktionen im Kursraum (z.B. im Moodle) nutzt, werden dabei Daten erzeugt. ");
-		resBuilder.append("Zum Beispiel wird erfasst, wenn du ein Quiz abschliesst, eine Note bekommst, in ein Forum postest oder dir Material ansiehst. ");
-		resBuilder.append("Diese Daten werden dann analysiert, z.B. um dir persoenliches Feedback zu deinem Lernprozess zu geben. \n" );
-		resBuilder.append("Ich kann dir dabei helfen, mehr Kontrolle ueber deine persoenlichen Daten aus der Lernumgebung zu erhalten. \n \n");
-		resBuilder.append("Erstens kannst du hier festlegen, welche Daten aus der Lernumgebung (Moodle) zur Analyse weiter gesendet werden. \n");
-		resBuilder.append("Du legst dabei fest welche Art von Daten, aus welchen Systemen verwendet werden darf. \n");
-		resBuilder.append("Wenn du es dir spaeter anders ueberlegst, kannst du hier die Zustimmung jederzeit wieder aendern. \n");
-		resBuilder.append("Denk daran, dass es natuerlich die Qualitaet deines Feedbacks beeinflusst, wenn weniger aussagekraeftige Daten ueber dich vorliegen. \n");
-		resBuilder.append("Schreib mich dazu an mit: 'optionen'\n \n");
-		resBuilder.append("Zweitens kannst du dir die ueber dich gesammelten Daten anzeigen lassen. \n");
-		resBuilder.append("Dabei werden dir alle Daten zu deiner Person angezeigt, die aus der Lernumgebung entnommen und zur Analyse abgespeichert wurden. \n");
-		resBuilder.append("Bei jeder Entnahme deiner Daten aus der Lernumgebung wird eine Referenz dazu auf einer Blockchain abgelegt. ");
-	    resBuilder.append("Beim Anzeigen deiner Daten werden diese mit der Blockchain-Referenz verglichen, sodass du sehen kannst, ob der Datensatz veraendert worden ist. ");
-		resBuilder.append("Selbstverstaendlich werden zur Analyse nur verifizierte (nicht manipulierte) Daten verwendet. \n");
-		resBuilder.append("Schreib mich dazu an mit: 'daten'\n \n");
+		resBuilder.append(userMessages.getString("serviceInfoText"));
 
 		JSONObject res = new JSONObject();
 		res.put("text", resBuilder.toString());
@@ -389,6 +376,7 @@ public class LearningAnalyticsVerificationService extends RESTService {
 		StringBuilder resBuilder = new StringBuilder();
 		
 		try {
+			// Fetch and display collected personal data.
 			resBuilder.append(userMessages.getString("followingDataStoredForUser"));
 			JSONObject bodyObj = (JSONObject) parser.parse(body);
 			resBuilder.append(getStatementsForUserEmail(bodyObj.getAsString("email")));
@@ -399,7 +387,6 @@ public class LearningAnalyticsVerificationService extends RESTService {
 			e.printStackTrace();
 			resBuilder.append(userMessages.getString("errSomethingWentWrong"));
 		} 
-		
 
 		JSONObject res = new JSONObject();
 		res.put("text", resBuilder.toString());
@@ -409,6 +396,12 @@ public class LearningAnalyticsVerificationService extends RESTService {
 
 	// ------------------------------ Consent handling -----------------------------
 
+	/**
+	 * Method creates a ConsentRegistry object based on the contract address that the
+	 * smart contract is deployed to on the Ethereum blockchain during the migration.
+	 * 
+	 * @return ConsentRegistry wrapper object
+	 */
 	private ConsentRegistry deployConsentRegistry() {
 		// ConsentRegistry contract = registryClient.deploySmartContract(ConsentRegistry.class, ConsentRegistry.BINARY);
 		ConsentRegistry contract = registryClient.loadSmartContract(ConsentRegistry.class, consentRegistryAddress);
@@ -422,10 +415,10 @@ public class LearningAnalyticsVerificationService extends RESTService {
 	/**
 	 * Function that is invoked by a service (e.g LMS proxy) to check for the consent of a given user.
 	 * 
-	 * @param User (represented by login name) to check consent for.
+	 * @param User (represented by email address) to check consent for
 	 * @param Action that the consent is requested for
 	 * @throws EthereumException 
-	 * @returns boolean True/false based on user consent.
+	 * @returns True/false based on whether consent was given by the user
 	 */
 	public boolean checkUserConsent(String email, String action) throws EthereumException {
 		// Get calling service from execution context
@@ -455,9 +448,10 @@ public class LearningAnalyticsVerificationService extends RESTService {
 
 	/**
 	 * Stores given consent level(s) for a user.
+	 * This will overwrite any consent that was previously given by the user.
 	 * 
-	 * @param User (represented by login name) to store consent for.
-	 * @param BigInteger necessary level of consent (as defined in config file)
+	 * @param User (represented by email address) to store consent for
+	 * @param BigInteger Level of consent (as defined in config file)
 	 * @throws EthereumException
 	 */
 	public void storeUserConsentLevels(String email, List<BigInteger> consentLevels) throws EthereumException {
@@ -478,7 +472,7 @@ public class LearningAnalyticsVerificationService extends RESTService {
 	/**
 	 * Revokes consent previously stored for the given user by storing blank consent.
 	 * 
-	 * @param User (represented by login name) to revoke consent for.
+	 * @param User (represented by email address) to revoke consent for.
 	 * @throws EthereumException
 	 */
 	public void revokeUserConsent(String email) throws EthereumException {
@@ -499,7 +493,7 @@ public class LearningAnalyticsVerificationService extends RESTService {
 	/**
 	 * Returns consent levels stored for the given user.
 	 * 
-	 * @param User (represented by login name) to revoke consent for.
+	 * @param User (represented by email address) to revoke consent for
 	 * @return List of all consent levels stored for the given user
 	 * @throws EthereumException
 	 */
@@ -525,6 +519,12 @@ public class LearningAnalyticsVerificationService extends RESTService {
 
 	// ------------------------- Verification ----------------------------
 
+	/**
+	 * Method creates a VerificationRegistry object based on the contract address that the
+	 * smart contract is deployed to on the Ethereum blockchain during the migration.
+	 * 
+	 * @return VerificationRegistry wrapper object
+	 */
 	private VerificationRegistry deployVerificationRegistry() {
 		VerificationRegistry contract = registryClient.loadSmartContract(VerificationRegistry.class, verificationRegistryAddress);
 		return contract;
@@ -570,26 +570,10 @@ public class LearningAnalyticsVerificationService extends RESTService {
 			throw new EthereumException(e);
 		}
 
-		// TODO Change this for production use.
-		// Store token for lookup.
+		// Store token for future lookup.
 		String token = xApiStatement.split("\\*")[1];
 		userToMoodleToken.put(email, token);
 	}
-
-	@SuppressWarnings("unchecked")
-	public String getDataHashes(String userName) throws EthereumException {
-		List<byte[]> result;
-		try {
-			result = (List<byte[]>) verificationRegistry.getDataHashesForUser(Util.padAndConvertString(userName, 32)).send();
-			result.stream().forEach(s -> logger.warning("Hash: " + s.toString()));
-		} catch (Exception e) {
-			e.printStackTrace();
-			throw new EthereumException(e);
-		}
-		return result.toString();
-	}
-
-	// --------------------------- Verification ----------------------------
 
 	/**
 	 * Queries all xAPIstatements from the LRS via the proxy service and filters relevant statements based on the given userEmail.
@@ -601,6 +585,8 @@ public class LearningAnalyticsVerificationService extends RESTService {
 	private String getStatementsForUserEmail(String userEmail) {
 		String token = userToMoodleToken.get(userEmail);
 		String statementsRaw = "";
+		
+		// Get xAPI-statements from the LRS.
 		try {
 			statementsRaw = (String) Context.get().invoke("i5.las2peer.services.learningLockerService.LearningLockerService@1.0.0", "getStatementsFromLRS", token);
 		} catch (Exception e) {
@@ -620,11 +606,14 @@ public class LearningAnalyticsVerificationService extends RESTService {
 				JSONObject statement = (JSONObject) statements.get(i);
 				String email = ((JSONObject) ((JSONObject) statement.get("actor")).get("account")).getAsString("name");
 
+				// Make sure to only include statements for the requesting user.
 				if (email.equals(userEmail)) {
 					String timestamp = statement.getAsString("timestamp");
 					String action = ((JSONObject) ((JSONObject) statement.get("verb")).get("display")).getAsString("en-US");
 					String object = ((JSONObject) ((JSONObject) ((JSONObject) statement.get("object")).get("definition")).get("name")).getAsString("en-US");
 					String toHash = timestamp + email + action + object;
+					
+					// Verify statement and format for display
 					boolean isVerified = verifyXApiStatement(toHash);
 					
 					ZonedDateTime time = ZonedDateTime.parse(timestamp).withZoneSameInstant(ZoneId.of("Europe/Berlin"));
@@ -645,6 +634,7 @@ public class LearningAnalyticsVerificationService extends RESTService {
 					resBuilder.append(stringBuilder.toString());
 				}
 			}
+			// add count of overall and verified statements
 			resBuilder.append("\n");
 			resBuilder.append(userMessages.getString("dataCount"));
 			resBuilder.append(statements.size());
@@ -665,8 +655,8 @@ public class LearningAnalyticsVerificationService extends RESTService {
 	/**
 	 * Checks for a given content string if a corresponding hash/logentry exists on the Ethereum blockchain.
 	 * 
-	 * @param content to verify with the Ethereum blockchain.
-	 * @return true if hash exists, false otherwise
+	 * @param String Content to verify with the Ethereum blockchain.
+	 * @return boolean true if hash exists, false otherwise
 	 * @throws EthereumException
 	 */
 	private boolean verifyXApiStatement(String toHash) throws EthereumException {		
