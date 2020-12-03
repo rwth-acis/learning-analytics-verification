@@ -65,7 +65,7 @@ import net.minidev.json.parser.ParseException;
 @SwaggerDefinition(
 		info = @Info(
 				title = "Learning Analytics Verification Service",
-				version = "1.0.0",
+				version = "1.0.1",
 				description = "Service for consent management and verification of learning analytics data.",
 				contact = @Contact(
 						name = "Lennart Bengtson",
@@ -588,7 +588,7 @@ public class LearningAnalyticsVerificationService extends RESTService {
 		
 		// Get xAPI-statements from the LRS.
 		try {
-			statementsRaw = (String) Context.get().invoke("i5.las2peer.services.learningLockerService.LearningLockerService@1.0.0", "getStatementsFromLRS", token);
+			statementsRaw = (String) Context.get().invoke("i5.las2peer.services.learningLockerService.LearningLockerService@1.1.0", "getStatementsFromLRS", token);
 		} catch (Exception e) {
 			return userMessages.getString("errNoDataFound");
 		}
