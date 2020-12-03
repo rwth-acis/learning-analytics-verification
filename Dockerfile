@@ -11,8 +11,9 @@ WORKDIR /app-cache/las2peer-registry-contracts
 RUN npm install
 WORKDIR /app-cache
 # RUN git clone https://github.com/rwth-acis/las2peer/ -b ba-lennart-bengtson
-RUN git clone --single-branch --branch ba-lennart-bengtson https://github.com/rwth-acis/las2peer/
+RUN git clone https://github.com/rwth-acis/las2peer/
 WORKDIR /app-cache/las2peer
+RUN git checkout tags/v1.0.1
 RUN ant build-only
 
 FROM openjdk:8-jdk-alpine
