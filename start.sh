@@ -40,20 +40,6 @@ function port { echo ${1#*:}; }
     cp migration-la.log /app/las2peer/node-storage/migration-la.log
     echo done. 
  }
- 
- # Delete this for cluster deployment!
-if [ -n "$LAS2PEER_CONFIG_ENDPOINT" ]; then
-    echo Attempting to autoconfigure registry blockchain parameters ...
-    if waitForEndpoint $(host ${LAS2PEER_CONFIG_ENDPOINT}) $(port ${LAS2PEER_CONFIG_ENDPOINT}) $CONFIG_ENDPOINT_WAIT; then
-        echo "Port is available (but that may just be the Docker daemon)."
-        echo Downloading ...
-        wget --quiet --tries=inf "http://${LAS2PEER_CONFIG_ENDPOINT}/${ETH_PROPS}" -O "${ETH_PROPS_DIR}${ETH_PROPS}"
-        echo done.
-    else
-        echo Registry configuration endpoint specified but not accessible. Aborting.
-        exit 1
-    fi
-fi
 
 if [ -n "$LAS2PEER_ETH_HOST" ]; then
     echo Replacing Ethereum client host in config files ...

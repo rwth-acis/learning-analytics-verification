@@ -9,12 +9,6 @@ WORKDIR /app-cache
 RUN git clone https://github.com/rwth-acis/las2peer-registry-contracts.git -b master
 WORKDIR /app-cache/las2peer-registry-contracts
 RUN npm install
-WORKDIR /app-cache
-# RUN git clone https://github.com/rwth-acis/las2peer/ -b ba-lennart-bengtson
-RUN git clone https://github.com/rwth-acis/las2peer/
-WORKDIR /app-cache/las2peer
-RUN git checkout tags/v1.0.1
-RUN ant build-only
 
 FROM openjdk:8-jdk-alpine
 ENV LAS2PEER_PORT=9000
@@ -32,8 +26,6 @@ WORKDIR /app
 RUN git clone https://github.com/ettore26/wait-for-command
 
 COPY --chown=build:build . /app
-COPY --from=buildcache --chown=build:build /app-cache/las2peer/core/lib /app/lib
-COPY --from=buildcache --chown=build:build /app-cache/las2peer/bundle/export/jars /app/lib
 
 # cache bust, see https://stackoverflow.com/a/39278224
 ADD https://api.github.com/repos/rwth-acis/las2peer-registry-contracts/git/refs/heads/master version.json
