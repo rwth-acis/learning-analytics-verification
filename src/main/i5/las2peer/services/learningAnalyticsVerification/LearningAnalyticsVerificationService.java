@@ -57,20 +57,13 @@ import net.minidev.json.parser.ParseException;
 /**
  * Learning Analytics Verification Service
  * 
- * This is a las2peer service that manages consent and access restrictions to personal LA data,
- * as well as the creation of references to LA data for verification purposes.
+ * This is a las2peer service that manages consent and access restrictions to
+ * personal LA data, as well as the creation of references to LA data for
+ * verification purposes.
  * 
  */
 @Api
-@SwaggerDefinition(
-		info = @Info(
-				title = "Learning Analytics Verification Service",
-				version = "1.0.1",
-				description = "Service for consent management and verification of learning analytics data.",
-				contact = @Contact(
-						name = "Lennart Bengtson",
-						url = "rwth-aachen.de",
-						email = "lennart.bengtson@rwth-aachen.de")))
+@SwaggerDefinition(info = @Info(title = "Learning Analytics Verification Service", version = "1.0.1", description = "Service for consent management and verification of learning analytics data.", contact = @Contact(name = "Lennart Bengtson", url = "rwth-aachen.de", email = "lennart.bengtson@rwth-aachen.de")))
 @ServicePath("/verification")
 public class LearningAnalyticsVerificationService extends RESTService {
 
@@ -85,7 +78,7 @@ public class LearningAnalyticsVerificationService extends RESTService {
 	private static String verificationRegistryAddress;
 
 	private static ResourceBundle userMessages;
-	
+
 	private static ConsentRegistry consentRegistry;
 	private static String consentRegistryAddress;
 
@@ -107,26 +100,26 @@ public class LearningAnalyticsVerificationService extends RESTService {
 	@POST
 	@Path("/init")
 	@Produces(MediaType.TEXT_PLAIN)
-	@ApiResponses(
-			value = { @ApiResponse(
-					code = HttpURLConnection.HTTP_OK,
-					message = "LA Verification Service initialized") })
+	@ApiResponses(value = {
+			@ApiResponse(code = HttpURLConnection.HTTP_OK, message = "LA Verification Service initialized") })
 	public Response init() {
 		if (initialized) {
 			return Response.status(Status.BAD_REQUEST).entity("Already initialized").build();
 		}
 		logger.info("Initializing LA verification service...");
-		
+
 		try {
 			// Read texts from resourceBundle
 			File file = new File(DEFAULT_MESSAGES_DIR);
-	        URL[] urls = {file.toURI().toURL()};
-	        ClassLoader loader = new URLClassLoader(urls);
-	        userMessages = ResourceBundle.getBundle("UserMessages", Locale.getDefault(), loader);	
+			URL[] urls = { file.toURI().toURL() };
+			ClassLoader loader = new URLClassLoader(urls);
+			userMessages = ResourceBundle.getBundle("UserMessages", Locale.getDefault(), loader);
 		} catch (Exception e) {
-			logger.warning("Unable to read messages from property file. Please make sure the file exists and is correctly formatted.");
+			logger.warning(
+					"Unable to read messages from property file. Please make sure the file exists and is correctly formatted.");
 			e.printStackTrace();
-			return Response.status(Status.BAD_REQUEST).entity("Unable to read user messages from property file").build();
+			return Response.status(Status.BAD_REQUEST).entity("Unable to read user messages from property file")
+					.build();
 		}
 
 		// Read consent levels from configuration file.
@@ -176,10 +169,7 @@ public class LearningAnalyticsVerificationService extends RESTService {
 	@Path("/showConsentMenu")
 	@Consumes(MediaType.TEXT_PLAIN)
 	@Produces(MediaType.APPLICATION_JSON)
-	@ApiResponses(
-			value = { @ApiResponse(
-					code = HttpURLConnection.HTTP_OK,
-					message = "Returned menu.") })
+	@ApiResponses(value = { @ApiResponse(code = HttpURLConnection.HTTP_OK, message = "Returned menu.") })
 	public Response showConsentMenu(String body) throws ParseException {
 		JSONParser parser = new JSONParser(JSONParser.MODE_PERMISSIVE);
 		String channel = "";
@@ -203,7 +193,7 @@ public class LearningAnalyticsVerificationService extends RESTService {
 				res.put("text", userMessages.getString("errWaitForActionToBeFinished"));
 				res.put("closeContext", "false");
 				return Response.ok().entity(res).build();
-				
+
 			} else if (consentProcessing.contains(channel)) {
 				// Proceed with storage
 				logger.info("Continuing consent storage for user " + email);
@@ -220,11 +210,11 @@ public class LearningAnalyticsVerificationService extends RESTService {
 						levels.add(new BigInteger(s));
 					}
 					consentProcessing.remove(channel);
-					
+
 					processingAction.add(channel);
 					storeUserConsentLevels(email, levels);
 					processingAction.remove(channel);
-					
+
 					// Build response and close context.
 					JSONObject res = new JSONObject();
 					res.put("text", userMessages.getString("confirmationConsentStorage"));
@@ -241,9 +231,10 @@ public class LearningAnalyticsVerificationService extends RESTService {
 					e.printStackTrace();
 				}
 				consentProcessing.remove(channel);
-				
+
 			} else if (choosingFunction.contains(channel)) {
-				// If options have been displayed, parse number and evaluate which function to execute.
+				// If options have been displayed, parse number and evaluate which function to
+				// execute.
 				String chosenOption = bodyObj.getAsString("msg").split("\\.")[0];
 				try {
 					int i = Integer.valueOf(chosenOption);
@@ -251,70 +242,70 @@ public class LearningAnalyticsVerificationService extends RESTService {
 					JSONObject res = new JSONObject();
 
 					switch (i) {
-					case 0: // abort
-						logger.info("Abort choosing function to execute...");
-						res = new JSONObject();
-						res.put("text", "");
-						res.put("closeContext", "true");
-						return Response.ok().entity(res).build();
+						case 0: // abort
+							logger.info("Abort choosing function to execute...");
+							res = new JSONObject();
+							res.put("text", "");
+							res.put("closeContext", "true");
+							return Response.ok().entity(res).build();
 
-					case 1: // consent storage;
-						logger.info("Starting consent storage for user " + email);
-						consentProcessing.add(channel);
-						String consentLevels = getConsentLevelsFormatted();
+						case 1: // consent storage;
+							logger.info("Starting consent storage for user " + email);
+							consentProcessing.add(channel);
+							String consentLevels = getConsentLevelsFormatted();
 
-						StringBuilder storageStringBuilder = new StringBuilder();
-						storageStringBuilder.append(userMessages.getString("menuConsentOptionsExplanation"));
-						storageStringBuilder.append(consentLevels);
-						storageStringBuilder.append(userMessages.getString("menuConsentOptionsPrompt"));
-						
-						res = new JSONObject();
-						res.put("text", storageStringBuilder.toString());
-						res.put("closeContext", "false");
-						return Response.ok().entity(res).build();
+							StringBuilder storageStringBuilder = new StringBuilder();
+							storageStringBuilder.append(userMessages.getString("menuConsentOptionsExplanation"));
+							storageStringBuilder.append(consentLevels);
+							storageStringBuilder.append(userMessages.getString("menuConsentOptionsPrompt"));
 
-					case 2: // consent display
-						List<BigInteger> givenConsent;
-						try {
-							givenConsent = getConsentLevelsForUserEmail(email);
-							StringBuilder stringBuilder = new StringBuilder();
-							if (givenConsent == null || givenConsent.isEmpty()) {
-								stringBuilder.append(userMessages.getString("noConsentForUserFound"));
-							} else {
-								stringBuilder.append(userMessages.getString("followingConsentForUserFound"));
-								for (BigInteger consent : givenConsent) {
-									stringBuilder.append(consentLevelMap.get(consent.intValue()).toString());
-									stringBuilder.append("\n");
+							res = new JSONObject();
+							res.put("text", storageStringBuilder.toString());
+							res.put("closeContext", "false");
+							return Response.ok().entity(res).build();
+
+						case 2: // consent display
+							List<BigInteger> givenConsent;
+							try {
+								givenConsent = getConsentLevelsForUserEmail(email);
+								StringBuilder stringBuilder = new StringBuilder();
+								if (givenConsent == null || givenConsent.isEmpty()) {
+									stringBuilder.append(userMessages.getString("noConsentForUserFound"));
+								} else {
+									stringBuilder.append(userMessages.getString("followingConsentForUserFound"));
+									for (BigInteger consent : givenConsent) {
+										stringBuilder.append(consentLevelMap.get(consent.intValue()).toString());
+										stringBuilder.append("\n");
+									}
 								}
+
+								res = new JSONObject();
+								res.put("text", stringBuilder.toString());
+								res.put("closeContext", "true");
+								return Response.ok().entity(res).build();
+							} catch (EthereumException e) {
+								e.printStackTrace();
 							}
+							break;
 
-							res = new JSONObject();
-							res.put("text", stringBuilder.toString());
-							res.put("closeContext", "true");
-							return Response.ok().entity(res).build();
-						} catch (EthereumException e) {
-							e.printStackTrace();
-						}
-						break;
+						case 3: // consent revocation
+							logger.info("Revoking consent for user " + email);
+							try {
+								processingAction.add(channel);
+								revokeUserConsent(email);
+								processingAction.remove(channel);
 
-					case 3: // consent revocation
-						logger.info("Revoking consent for user " + email);
-						try {
-							processingAction.add(channel);
-							revokeUserConsent(email);
-							processingAction.remove(channel);
-							
-							res = new JSONObject();
-							res.put("text", userMessages.getString("confirmationPreferencesUpdated"));
-							res.put("closeContext", "true");
-							return Response.ok().entity(res).build();
-						} catch (EthereumException e) {
-							e.printStackTrace();
-						}
-						break;
+								res = new JSONObject();
+								res.put("text", userMessages.getString("confirmationPreferencesUpdated"));
+								res.put("closeContext", "true");
+								return Response.ok().entity(res).build();
+							} catch (EthereumException e) {
+								e.printStackTrace();
+							}
+							break;
 
-					default:
-						break;
+						default:
+							break;
 					}
 
 				} catch (NumberFormatException e) {
@@ -323,7 +314,7 @@ public class LearningAnalyticsVerificationService extends RESTService {
 					err.put("closeContext", "false");
 					return Response.ok().entity(err).build();
 				}
-				
+
 			} else {
 				choosingFunction.add(channel);
 				JSONObject res = new JSONObject();
@@ -337,24 +328,22 @@ public class LearningAnalyticsVerificationService extends RESTService {
 
 		choosingFunction.remove(channel);
 		processingAction.remove(channel);
-		
+
 		JSONObject res = new JSONObject();
 		res.put("text", userMessages.getString("errSomethingWentWrong"));
 		res.put("closeContext", "true");
 		return Response.ok().entity(res).build();
 	}
-	
+
 	@POST
 	@Path("/showServiceInformation")
 	@Produces(MediaType.APPLICATION_JSON)
-	@ApiResponses(
-			value = { @ApiResponse(
-					code = HttpURLConnection.HTTP_OK,
-					message = "Delivered service information text.") })
+	@ApiResponses(value = {
+			@ApiResponse(code = HttpURLConnection.HTTP_OK, message = "Delivered service information text.") })
 	public Response showServiceInformation(String body) {
 		logger.info("Showing service information...");
 		StringBuilder resBuilder = new StringBuilder();
-		
+
 		resBuilder.append(userMessages.getString("serviceInfoText"));
 
 		JSONObject res = new JSONObject();
@@ -366,15 +355,13 @@ public class LearningAnalyticsVerificationService extends RESTService {
 	@POST
 	@Path("/showLrsData")
 	@Produces(MediaType.APPLICATION_JSON)
-	@ApiResponses(
-			value = { @ApiResponse(
-					code = HttpURLConnection.HTTP_OK,
-					message = "Retrieved relevant learning analytics data.") })
+	@ApiResponses(value = {
+			@ApiResponse(code = HttpURLConnection.HTTP_OK, message = "Retrieved relevant learning analytics data.") })
 	public Response showLrsData(String body) {
 		logger.info("Data requested...");
 		JSONParser parser = new JSONParser(JSONParser.MODE_PERMISSIVE);
 		StringBuilder resBuilder = new StringBuilder();
-		
+
 		try {
 			// Fetch and display collected personal data.
 			resBuilder.append(userMessages.getString("followingDataStoredForUser"));
@@ -386,7 +373,7 @@ public class LearningAnalyticsVerificationService extends RESTService {
 		} catch (ParseException e) {
 			e.printStackTrace();
 			resBuilder.append(userMessages.getString("errSomethingWentWrong"));
-		} 
+		}
 
 		JSONObject res = new JSONObject();
 		res.put("text", resBuilder.toString());
@@ -397,13 +384,16 @@ public class LearningAnalyticsVerificationService extends RESTService {
 	// ------------------------------ Consent handling -----------------------------
 
 	/**
-	 * Method creates a ConsentRegistry object based on the contract address that the
-	 * smart contract is deployed to on the Ethereum blockchain during the migration.
+	 * Method creates a ConsentRegistry object based on the contract address that
+	 * the smart contract is deployed to on the Ethereum blockchain during the
+	 * migration.
 	 * 
 	 * @return ConsentRegistry wrapper object
 	 */
 	private ConsentRegistry deployConsentRegistry() {
-		// ConsentRegistry contract = registryClient.deploySmartContract(ConsentRegistry.class, ConsentRegistry.BINARY);
+		// ConsentRegistry contract =
+		// registryClient.deploySmartContract(ConsentRegistry.class,
+		// ConsentRegistry.BINARY);
 		ConsentRegistry contract = registryClient.loadSmartContract(ConsentRegistry.class, consentRegistryAddress);
 		return contract;
 	}
@@ -413,16 +403,18 @@ public class LearningAnalyticsVerificationService extends RESTService {
 	}
 
 	/**
-	 * Function that is invoked by a service (e.g LMS proxy) to check for the consent of a given user.
+	 * Function that is invoked by a service (e.g LMS proxy) to check for the
+	 * consent of a given user.
 	 * 
-	 * @param User (represented by email address) to check consent for
+	 * @param User   (represented by email address) to check consent for
 	 * @param Action that the consent is requested for
-	 * @throws EthereumException 
+	 * @throws EthereumException
 	 * @returns True/false based on whether consent was given by the user
 	 */
 	public boolean checkUserConsent(String email, String action) throws EthereumException {
 		// Get calling service from execution context
-		ServiceAgentImpl callingAgent = (ServiceAgentImpl) ExecutionContext.getCurrent().getCallerContext().getMainAgent();
+		ServiceAgentImpl callingAgent = (ServiceAgentImpl) ExecutionContext.getCurrent().getCallerContext()
+				.getMainAgent();
 		String callingAgentName = callingAgent.getServiceNameVersion().getSimpleClassName().toLowerCase();
 
 		for (BigInteger level : getConsentLevelsForUserEmail(email)) {
@@ -447,44 +439,47 @@ public class LearningAnalyticsVerificationService extends RESTService {
 	}
 
 	/**
-	 * Stores given consent level(s) for a user.
-	 * This will overwrite any consent that was previously given by the user.
+	 * Stores given consent level(s) for a user. This will overwrite any consent
+	 * that was previously given by the user.
 	 * 
-	 * @param User (represented by email address) to store consent for
+	 * @param User       (represented by email address) to store consent for
 	 * @param BigInteger Level of consent (as defined in config file)
 	 * @throws EthereumException
 	 */
 	public void storeUserConsentLevels(String email, List<BigInteger> consentLevels) throws EthereumException {
-		byte[] emailHash = Util.soliditySha3(email); 
+		byte[] emailHash = Util.soliditySha3(email);
 		try {
 			consentRegistry.storeConsent(emailHash, consentLevels).sendAsync().get();
-			if (consentCache.containsKey(email)) {				
+			if (consentCache.containsKey(email)) {
 				logger.info("Resetting consent cache.");
 				consentCache.remove(email);
 			}
 		} catch (IllegalArgumentException e) {
-			throw new IllegalArgumentException("One of the parameters used for setting the user consent is invalid.", e);
+			throw new IllegalArgumentException("One of the parameters used for setting the user consent is invalid.",
+					e);
 		} catch (Exception e) {
 			throw new EthereumException(e);
 		}
 	}
 
 	/**
-	 * Revokes consent previously stored for the given user by storing blank consent.
+	 * Revokes consent previously stored for the given user by storing blank
+	 * consent.
 	 * 
 	 * @param User (represented by email address) to revoke consent for.
 	 * @throws EthereumException
 	 */
 	public void revokeUserConsent(String email) throws EthereumException {
-		byte[] emailHash = Util.soliditySha3(email); 
+		byte[] emailHash = Util.soliditySha3(email);
 		try {
 			consentRegistry.revokeConsent(emailHash).sendAsync().get();
-			if (consentCache.containsKey(email)) {				
+			if (consentCache.containsKey(email)) {
 				logger.info("Resetting consent cache.");
 				consentCache.remove(email);
 			}
 		} catch (IllegalArgumentException e) {
-			throw new IllegalArgumentException("One of the parameters used for revoking the user consent is invalid.", e);
+			throw new IllegalArgumentException("One of the parameters used for revoking the user consent is invalid.",
+					e);
 		} catch (Exception e) {
 			throw new EthereumException(e);
 		}
@@ -504,8 +499,8 @@ public class LearningAnalyticsVerificationService extends RESTService {
 			return consentCache.get(email);
 		}
 
-		byte[] emailHash = Util.soliditySha3(email); 
-		
+		byte[] emailHash = Util.soliditySha3(email);
+
 		// Try to get information from the blockchain and return.
 		List<BigInteger> consentLevels;
 		try {
@@ -520,13 +515,15 @@ public class LearningAnalyticsVerificationService extends RESTService {
 	// ------------------------- Verification ----------------------------
 
 	/**
-	 * Method creates a VerificationRegistry object based on the contract address that the
-	 * smart contract is deployed to on the Ethereum blockchain during the migration.
+	 * Method creates a VerificationRegistry object based on the contract address
+	 * that the smart contract is deployed to on the Ethereum blockchain during the
+	 * migration.
 	 * 
 	 * @return VerificationRegistry wrapper object
 	 */
 	private VerificationRegistry deployVerificationRegistry() {
-		VerificationRegistry contract = registryClient.loadSmartContract(VerificationRegistry.class, verificationRegistryAddress);
+		VerificationRegistry contract = registryClient.loadSmartContract(VerificationRegistry.class,
+				verificationRegistryAddress);
 		return contract;
 	}
 
@@ -535,13 +532,15 @@ public class LearningAnalyticsVerificationService extends RESTService {
 	}
 
 	/**
-	 * Creates log and hash based on the given xAPIstatement and stores information on the Ethereum blockchain.
+	 * Creates log and hash based on the given xAPIstatement and stores information
+	 * on the Ethereum blockchain.
 	 * 
 	 * @param xApiStatement for which to create the log entry.
 	 * @throws CryptoException
 	 * @throws EthereumException
 	 */
 	public void createLogEntry(String xApiStatement) throws CryptoException, EthereumException {
+		System.out.println(xApiStatement);
 		JSONParser parser = new JSONParser(JSONParser.MODE_PERMISSIVE);
 		JSONObject statement = new JSONObject();
 		try {
@@ -552,7 +551,14 @@ public class LearningAnalyticsVerificationService extends RESTService {
 		String email = ((JSONObject) ((JSONObject) statement.get("actor")).get("account")).getAsString("name");
 		String timestamp = statement.getAsString("timestamp");
 		String verb = ((JSONObject) ((JSONObject) statement.get("verb")).get("display")).getAsString("en-US");
-		String object = ((JSONObject) ((JSONObject) ((JSONObject) statement.get("object")).get("definition")).get("name")).getAsString("en-US");
+		String object = ((JSONObject) ((JSONObject) ((JSONObject) statement.get("object")).get("definition"))
+				.get("name")).getAsString("en-US");
+
+		System.out.println("DADATATATATATATATATTATATATAATTATAAT");
+		System.out.println(email);
+		System.out.println(timestamp);
+		System.out.println(verb);
+		System.out.println(object);
 
 		StringBuilder stringBuilder = new StringBuilder();
 		stringBuilder.append(timestamp);
@@ -562,22 +568,48 @@ public class LearningAnalyticsVerificationService extends RESTService {
 
 		// Create hash to store on chain
 		byte[] hash = Util.soliditySha3(stringBuilder.toString());
-		byte[] emailHash = Util.soliditySha3(email); 
+		byte[] emailHash = Util.soliditySha3(email);
+		System.out.println("Before veerrfiificiiitititititititit");
+		System.out.println("Before veerrfiificiiitititititititit");
+		System.out.println("Before veerrfiificiiitititititititit");
+		System.out.println("Before veerrfiificiiitititititititit");
+		System.out.println("Before veerrfiificiiitititititititit");
 
 		try {
+			System.out.println("DDOOIINNNNNGGGGG");
+			System.out.println("DDOOIINNNNNGGGGG");
+			System.out.println("DDOOIINNNNNGGGGG");
+			System.out.println("DDOOIINNNNNGGGGG");
+
 			verificationRegistry.createLogEntry(emailHash, hash).sendAsync().get();
+			System.out.println("AAAFFTEERR");
+			System.out.println("AAAFFTEERR");
+			System.out.println("AAAFFTEERR");
+			System.out.println("AAAFFTEERR");
+
 		} catch (Exception e) {
+			System.out.println("EERROROROROORORO");
+			System.out.println("EERROROROROORORO");
+			System.out.println("EERROROROROORORO");
+			System.out.println("EERROROROROORORO");
+			System.out.println(e);
+
 			throw new EthereumException(e);
 		}
-
+		System.out.println("DONNNNNENENENNENENENNENENENENEENNE");
+		System.out.println("DONNNNNENENENNENENENNENENENENEENNE");
+		System.out.println("DONNNNNENENENNENENENNENENENENEENNE");
 		// Store token for future lookup.
 		String token = xApiStatement.split("\\*")[1];
 		userToMoodleToken.put(email, token);
+		System.out.println(token);
+		System.out.println(userToMoodleToken);
 	}
 
 	/**
-	 * Queries all xAPIstatements from the LRS via the proxy service and filters relevant statements based on the given userEmail.
-	 * Statements are verified with the logs on the Ethereum blockchain, formatted and returned.
+	 * Queries all xAPIstatements from the LRS via the proxy service and filters
+	 * relevant statements based on the given userEmail. Statements are verified
+	 * with the logs on the Ethereum blockchain, formatted and returned.
 	 * 
 	 * @param User (represented by email) to revoke consent for.
 	 * @return formatted xAPIstatements from LRS for the given user
@@ -585,10 +617,12 @@ public class LearningAnalyticsVerificationService extends RESTService {
 	private String getStatementsForUserEmail(String userEmail) {
 		String token = userToMoodleToken.get(userEmail);
 		String statementsRaw = "";
-		
+
 		// Get xAPI-statements from the LRS.
 		try {
-			statementsRaw = (String) Context.get().invoke("i5.las2peer.services.learningLockerService.LearningLockerService@1.1.0", "getStatementsFromLRS", token);
+			statementsRaw = (String) Context.get().invoke(
+					"i5.las2peer.services.learningLockerService.LearningLockerService@1.1.0", "getStatementsFromLRS",
+					token);
 		} catch (Exception e) {
 			return userMessages.getString("errNoDataFound");
 		}
@@ -599,7 +633,7 @@ public class LearningAnalyticsVerificationService extends RESTService {
 		try {
 			JSONObject obj = (JSONObject) parser.parse(statementsRaw);
 			JSONArray statements = (JSONArray) obj.get("statements");
-			
+
 			int verifiedStatements = 0;
 
 			for (int i = 0; i < statements.size(); i++) {
@@ -609,15 +643,17 @@ public class LearningAnalyticsVerificationService extends RESTService {
 				// Make sure to only include statements for the requesting user.
 				if (email.equals(userEmail)) {
 					String timestamp = statement.getAsString("timestamp");
-					String action = ((JSONObject) ((JSONObject) statement.get("verb")).get("display")).getAsString("en-US");
-					String object = ((JSONObject) ((JSONObject) ((JSONObject) statement.get("object")).get("definition")).get("name")).getAsString("en-US");
+					String action = ((JSONObject) ((JSONObject) statement.get("verb")).get("display"))
+							.getAsString("en-US");
+					String object = ((JSONObject) ((JSONObject) ((JSONObject) statement.get("object"))
+							.get("definition")).get("name")).getAsString("en-US");
 					String toHash = timestamp + email + action + object;
-					
+
 					// Verify statement and format for display
 					boolean isVerified = verifyXApiStatement(toHash);
-					
+
 					ZonedDateTime time = ZonedDateTime.parse(timestamp).withZoneSameInstant(ZoneId.of("Europe/Berlin"));
-					
+
 					StringBuilder stringBuilder = new StringBuilder();
 					stringBuilder.append(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm").format(time));
 					stringBuilder.append("   ");
@@ -627,7 +663,7 @@ public class LearningAnalyticsVerificationService extends RESTService {
 					stringBuilder.append("   ");
 					if (isVerified) {
 						verifiedStatements++;
-						stringBuilder.append(userMessages.getString("dataVerified"));			
+						stringBuilder.append(userMessages.getString("dataVerified"));
 					} else {
 						stringBuilder.append(userMessages.getString("dataUnverified"));
 					}
@@ -642,29 +678,30 @@ public class LearningAnalyticsVerificationService extends RESTService {
 			resBuilder.append(userMessages.getString("dataCountVerified"));
 			resBuilder.append(verifiedStatements);
 			resBuilder.append("\n");
-			
+
 		} catch (ParseException e) {
 			e.printStackTrace();
 		} catch (EthereumException e) {
 			e.printStackTrace();
 		}
-		
+
 		return resBuilder.toString();
 	}
 
 	/**
-	 * Checks for a given content string if a corresponding hash/logentry exists on the Ethereum blockchain.
+	 * Checks for a given content string if a corresponding hash/logentry exists on
+	 * the Ethereum blockchain.
 	 * 
 	 * @param String Content to verify with the Ethereum blockchain.
 	 * @return boolean true if hash exists, false otherwise
 	 * @throws EthereumException
 	 */
-	private boolean verifyXApiStatement(String toHash) throws EthereumException {		
+	private boolean verifyXApiStatement(String toHash) throws EthereumException {
 		boolean result = false;
 		if (toHash.isEmpty()) {
 			return result;
 		}
-		
+
 		byte[] hash = Util.soliditySha3(toHash);
 
 		try {
@@ -677,7 +714,7 @@ public class LearningAnalyticsVerificationService extends RESTService {
 		return result;
 	}
 
-	// --------------------------- Utility  ----------------------------
+	// --------------------------- Utility ----------------------------
 
 	private String getConsentLevelsFormatted() {
 		StringBuilder stringBuilder = new StringBuilder();
