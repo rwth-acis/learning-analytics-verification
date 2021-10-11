@@ -600,7 +600,7 @@ public class LearningAnalyticsVerificationService extends RESTService {
 		System.out.println("DONNNNNENENENNENENENNENENENENEENNE");
 		System.out.println("DONNNNNENENENNENENENNENENENENEENNE");
 		// Store token for future lookup.
-		String token = xApiStatement.split("\\*")[1];
+		String token = statement.getAsString("token");
 		userToMoodleToken.put(email, token);
 		System.out.println(token);
 		System.out.println(userToMoodleToken);
