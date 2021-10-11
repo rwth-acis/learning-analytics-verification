@@ -2,7 +2,7 @@
 FROM openjdk:8-jdk-alpine AS buildcache
 RUN apk add --no-cache bash nodejs npm git python build-base htop curl sed apache-ant tar wget vim && npm i -g pm2 http-server
 # https://github.com/mhart/alpine-node/issues/48#issuecomment-370171836
-RUN addgroup -g 1000 -S build && adduser -u 1000 -S build -G build
+RUN addgroup -g 7777 -S build && adduser -u 7777 -S build -G build
 RUN mkdir /app-cache && chown build:build /app-cache
 USER build
 WORKDIR /app-cache
@@ -23,7 +23,7 @@ ENV LAS2PEER_BOOTSTRAP="${LAS2PEER_BOOTSTRAP}"
 
 RUN apk add --no-cache bash nodejs npm git python build-base htop curl sed apache-ant tar wget vim && npm i -g pm2 http-server
 
-RUN addgroup -g 1000 -S build && adduser -u 1000 -S build -G build
+RUN addgroup -g 7777 -S build && adduser -u 7777 -S build -G build
 RUN mkdir -p /app && chown build:build /app
 RUN mkdir -p /app/las2peer/node-storage && chown build:build /app/las2peer/node-storage
 USER build
